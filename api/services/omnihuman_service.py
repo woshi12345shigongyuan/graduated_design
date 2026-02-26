@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v2"
 
 # 轮询配置
-POLL_INTERVAL = 2
-POLL_MAX_WAIT = 5000000  # 最多等 5 分钟
+POLL_INTERVAL = 10
+POLL_MAX_WAIT = 600000  # 最多等 5 分钟
 
 
 class OmniHumanService:
@@ -52,8 +52,6 @@ class OmniHumanService:
         self._client = VisualService()
         self._client.set_ak(self._ak)
         self._client.set_sk(self._sk)
-        print(self._ak)
-        print(self._sk)
         return self._client
 
     @property

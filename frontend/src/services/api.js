@@ -47,7 +47,7 @@ export const chatApi = {
    */
   async sendMessage(message, options = {}) {
     // 数字人视频生成 + 下载可能较耗时，这里为聊天发送单独设置更长超时时间
-    const timeout = options.timeout ?? 5000000 // 
+    const timeout = options.timeout ?? 700000 // 
     return api.post(
       '/chat/send',
       {
