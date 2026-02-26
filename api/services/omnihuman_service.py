@@ -13,7 +13,9 @@ import os
 import time
 import logging
 from typing import Optional
-
+import socket
+# 设置全局默认超时时间为120秒
+socket.setdefaulttimeout(120)
 logger = logging.getLogger(__name__)
 
 # OmniHuman1.0 快速模式 - 视频生成 req_key（以官方文档为准）
@@ -22,6 +24,9 @@ REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v2"
 # 轮询配置
 POLL_INTERVAL = 2
 POLL_MAX_WAIT = 300  # 最多等 5 分钟
+
+# 数字人接口 HTTP 超时（秒）。SDK 默认 30 秒，经代理时易超时，适当调大
+VOLC_HTTP_TIMEOUT = int(os.getenv("VOLC_HTTP_TIMEOUT", "120"))
 
 
 class OmniHumanService:
@@ -46,6 +51,12 @@ class OmniHumanService:
         self._client = VisualService()
         self._client.set_ak(self._ak)
         self._client.set_sk(self._sk)
+        # SDK 默认 connection_timeout/socket_timeout=30，经代理(如 127.0.0.1:10810)时易读超时，此处调大
+        if hasattr(self._client, "service_info") and self._client.service_info is not None:
+            self._client.service_info.connection_timeout = VOLC_HTTP_TIMEOUT
+            self._client.service_info.socket_timeout = VOLC_HTTP_TIMEOUT
+            logger.info("数字人 Visual 客户端 HTTP 超时已设为 %s 秒", VOLC_HTTP_TIMEOUT)
+
         return self._client
 
     @property
@@ -133,7 +144,7 @@ class OmniHumanService:
             logger.warning("数字人视频生成超时（未在 %s 秒内完成）", POLL_MAX_WAIT)
             return None
         except Exception as e:
-            logger.exception("调用数字人视频生成接口异常: %s", e)
+            logger.exception("调用数字人视频生成: %s", e)
             return None
 
 
