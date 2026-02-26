@@ -17,3 +17,7 @@ uvicorn>=0.27.0
 edge-tts>=6.1.9
 python-multipart>=0.0.6
 aiofiles>=23.2.1
+python-dotenv>=1.0.0
+
+# 即梦AI数字人 OmniHuman 1.0（火山引擎智能视觉）
+volcengine-python-sdk>=1.0.0

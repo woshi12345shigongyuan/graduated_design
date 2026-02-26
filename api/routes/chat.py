@@ -10,8 +10,13 @@ from pydantic import BaseModel
 
 from ..services.rag_service import rag_service
 from ..services.tts_service import tts_service
+from ..services.omnihuman_service import omnihuman_service
+from .digital_human import get_current_avatar_base64
 
 logger = logging.getLogger(__name__)
+
+# 约 15 秒语音对应的中文字数（约 4 字/秒），用于数字人视频经济控制
+MAX_TTS_CHARS_FOR_VIDEO = 60
 
 router = APIRouter(prefix="/api/chat", tags=["聊天"])
 
@@ -28,6 +33,7 @@ class ChatResponse(BaseModel):
     """聊天响应模型"""
     answer: str
     audio_url: Optional[str] = None
+    video_url: Optional[str] = None  # 数字人视频 URL（有基础图且生成成功时返回）
     session_id: Optional[str] = None
 
 
@@ -83,24 +89,56 @@ async def send_message(request: ChatRequest):
         # 获取 RAG 系统回答
         answer = rag_service.ask_question(request.message, stream=False)
         
-        # 生成语音（如果启用）
         audio_url = None
+        video_url = None
+        has_avatar = get_current_avatar_base64() is not None
+
+        # 便于排查：未调用数字人时在日志中写明原因
+        if request.enable_tts and answer and not has_avatar:
+            logger.info("数字人未调用: 未上传基础图或基础图已删除")
+        if request.enable_tts and answer and has_avatar and not omnihuman_service.is_available:
+            logger.warning("数字人未调用: 未配置火山引擎 AK/SK，请在 .env 中设置 VOLC_ACCESS_KEY_ID 与 VOLC_SECRET_ACCESS_KEY")
+
         if request.enable_tts and answer:
+            # 若启用数字人且存在基础图：TTS 仅合成约 15 秒以节省成本，并尝试生成数字人视频
+            text_for_tts = answer
+            if has_avatar and omnihuman_service.is_available and len(answer) > MAX_TTS_CHARS_FOR_VIDEO:
+                text_for_tts = answer[:MAX_TTS_CHARS_FOR_VIDEO].rstrip()
+                if text_for_tts and not text_for_tts.endswith(("。", "！", "？")):
+                    text_for_tts += "。"
             try:
                 audio_path = await tts_service.synthesize(
-                    text=answer,
+                    text=text_for_tts,
                     voice=request.voice
                 )
-                # 返回相对 URL
                 from pathlib import Path
                 audio_filename = Path(audio_path).name
                 audio_url = f"/api/tts/audio/{audio_filename}"
             except Exception as e:
                 logger.warning(f"TTS 合成失败，但不影响文本回复: {e}")
+
+            # 有基础图且未删除时，调用即梦数字人生成视频
+            if has_avatar and audio_url and omnihuman_service.is_available:
+                try:
+                    logger.info("正在调用即梦数字人 API 生成视频（使用上传基础图 + 语音 URL）...")
+                    # 上传基础图在后端暴露为 /api/digital_human/avatar/image
+                    image_url = "/api/digital_human/avatar/image"
+                    # audio_url 形如 /api/tts/audio/xxx.mp3
+                    video_url = omnihuman_service.create_digital_human_video(
+                        image_url=image_url,
+                        audio_url=audio_url,
+                    )
+                    if video_url:
+                        logger.info("数字人视频生成成功: %s", video_url)
+                    else:
+                        logger.warning("数字人 API 返回无视频，将仅播放音频")
+                except Exception as e:
+                    logger.warning("数字人视频生成失败，将仅播放音频: %s", e)
         
         return ChatResponse(
             answer=answer,
             audio_url=audio_url,
+            video_url=video_url,
             session_id=request.session_id
         )
         

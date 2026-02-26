@@ -8,6 +8,14 @@ import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+# 尽早加载 .env，保证数字人等服务能读到 VOLC_ACCESS_KEY_ID / VOLC_SECRET_ACCESS_KEY
+try:
+    from dotenv import load_dotenv
+    _root = Path(__file__).resolve().parent.parent
+    load_dotenv(_root / ".env")
+except ImportError:
+    pass
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # 设置 Hugging Face 镜像
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
-from .routes import chat_router, tts_router
+from .routes import chat_router, tts_router, digital_human_router
 
 # 配置日志
 logging.basicConfig(
@@ -63,11 +71,15 @@ app.add_middleware(
 # 注册路由
 app.include_router(chat_router)
 app.include_router(tts_router)
+app.include_router(digital_human_router)
 
-# 挂载静态文件（音频文件）
+# 挂载静态文件（音频、数字人视频）
 audio_dir = PROJECT_ROOT / "audio"
 if audio_dir.exists():
     app.mount("/audio", StaticFiles(directory=str(audio_dir)), name="audio")
+video_dir = PROJECT_ROOT / "video"
+video_dir.mkdir(exist_ok=True)
+app.mount("/api/digital_human/video", StaticFiles(directory=str(video_dir)), name="digital_human_video")
 
 
 @app.get("/")

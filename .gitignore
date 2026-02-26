@@ -2,3 +2,6 @@ models/
 dishes/
 vector_index/
 __pycache__
+audio/
+uploads/
+docs/

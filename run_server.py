@@ -10,6 +10,13 @@ from pathlib import Path
 project_root = Path(__file__).parent
 os.chdir(project_root)
 
+# 加载 .env（数字人 API 需要 VOLC_ACCESS_KEY_ID / VOLC_SECRET_ACCESS_KEY）
+try:
+    from dotenv import load_dotenv
+    load_dotenv(project_root / ".env")
+except ImportError:
+    pass
+
 # 添加项目路径
 sys.path.insert(0, str(project_root))
 
