@@ -68,6 +68,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 添加 ngrok 警告跳过中间件
+@app.middleware("https")
+async def add_ngrok_skip_header(request, call_next):
+    response = await call_next(request)
+    response.headers["ngrok-skip-browser-warning"] = "1"
+    return response
+
 # 注册路由
 app.include_router(chat_router)
 app.include_router(tts_router)

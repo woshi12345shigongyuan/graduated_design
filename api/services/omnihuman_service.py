@@ -12,10 +12,9 @@
 import os
 import time
 import logging
+from pathlib import Path
 from typing import Optional
-import socket
-# 设置全局默认超时时间为120秒
-socket.setdefaulttimeout(120)
+
 logger = logging.getLogger(__name__)
 
 # OmniHuman1.0 快速模式 - 视频生成 req_key（以官方文档为准）
@@ -23,10 +22,7 @@ REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v2"
 
 # 轮询配置
 POLL_INTERVAL = 2
-POLL_MAX_WAIT = 300  # 最多等 5 分钟
-
-# 数字人接口 HTTP 超时（秒）。SDK 默认 30 秒，经代理时易超时，适当调大
-VOLC_HTTP_TIMEOUT = int(os.getenv("VOLC_HTTP_TIMEOUT", "120"))
+POLL_MAX_WAIT = 5000000  # 最多等 5 分钟
 
 
 class OmniHumanService:
@@ -38,6 +34,11 @@ class OmniHumanService:
         self._sk = os.getenv("VOLC_SECRET_ACCESS_KEY") or os.getenv("SECRET_ACCESS_KEY")
         # PUBLIC_BASE_URL 用于把本地相对路径（/api/...）拼成公网 URL，如 https://your-domain.com
         self._public_base_url = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+        # 本地视频目录（与 FastAPI 中挂载的路径保持一致）
+        self._video_dir = Path(__file__).resolve().parent.parent.parent / "video"
+        self._video_dir.mkdir(exist_ok=True)
+        # 始终复用同一个文件名，便于前端固定使用一个 URL 播放当前视频
+        self._local_video_name = "current.mp4"
 
     def _get_client(self):
         if self._client is not None:
@@ -51,17 +52,53 @@ class OmniHumanService:
         self._client = VisualService()
         self._client.set_ak(self._ak)
         self._client.set_sk(self._sk)
-        # SDK 默认 connection_timeout/socket_timeout=30，经代理(如 127.0.0.1:10810)时易读超时，此处调大
-        if hasattr(self._client, "service_info") and self._client.service_info is not None:
-            self._client.service_info.connection_timeout = VOLC_HTTP_TIMEOUT
-            self._client.service_info.socket_timeout = VOLC_HTTP_TIMEOUT
-            logger.info("数字人 Visual 客户端 HTTP 超时已设为 %s 秒", VOLC_HTTP_TIMEOUT)
-
+        print(self._ak)
+        print(self._sk)
         return self._client
 
     @property
     def is_available(self) -> bool:
         return bool(self._ak and self._sk)
+
+    def _save_video_locally(self, remote_url: str) -> Optional[str]:
+        """
+        将即梦返回的公网 video_url 下载到本地 video 目录，并返回本地可访问的 URL。
+        - 每次生成时会删除上一个视频，仅保留当前的 latest（current.mp4）。
+        """
+        if not remote_url:
+            return None
+
+        try:
+            import requests
+        except ImportError:
+            logger.warning("未安装 requests，无法下载数字人视频，将直接返回远程 URL")
+            return remote_url
+
+        try:
+            # 清理旧视频，仅保留最新一次生成
+            for f in self._video_dir.glob("*.mp4"):
+                try:
+                    f.unlink()
+                except Exception as e:
+                    logger.warning("删除旧视频文件失败: %s", e)
+
+            local_path = self._video_dir / self._local_video_name
+
+            timeout = float(os.getenv("VOLC_HTTP_TIMEOUT", "180") or "180")
+            resp = requests.get(remote_url, stream=True, timeout=timeout)
+            resp.raise_for_status()
+
+            with open(local_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+
+            logger.info("数字人视频已下载到本地: %s", local_path)
+            # 与 api.app 中挂载的静态路径保持一致
+            return f"/api/digital_human/video/{self._local_video_name}"
+        except Exception as e:
+            logger.warning("下载数字人视频失败，将使用远程 URL: %s", e)
+            return remote_url
 
     def _build_public_url(self, path_or_url: str) -> str:
         """
@@ -101,9 +138,10 @@ class OmniHumanService:
             "image_url": self._build_public_url(image_url),
             "audio_url": self._build_public_url(audio_url),
         }
-
+        print(form["image_url"], form["audio_url"])
+        
         try:
-            resp = client.cv_sync2async_submit_task(form)
+            resp = client.cv_submit_task(form)
             if not resp:
                 logger.warning("数字人视频生成 submit 返回为空")
                 return None
@@ -118,7 +156,7 @@ class OmniHumanService:
             for _ in range(POLL_MAX_WAIT // POLL_INTERVAL):
                 time.sleep(POLL_INTERVAL)
                 get_form = {"req_key": REQ_KEY_VIDEO, "task_id": task_id}
-                result = client.cv_sync2async_get_result(get_form)
+                result = client.cv_get_result(get_form)
                 if not result:
                     continue
                 res_data = result.get("data") if isinstance(result, dict) else None
@@ -133,8 +171,10 @@ class OmniHumanService:
                         or res_data.get("url")
                     )
                     if video_url:
-                        logger.info("数字人视频生成成功，video_url=%s", video_url)
-                        return video_url
+                        logger.info("数字人视频生成成功，远程 video_url=%s，开始下载到本地", video_url)
+                        local_url = self._save_video_locally(video_url)
+                        # local_url 优先（下载成功时为本地 URL，失败则退回远程 URL）
+                        return local_url
                     logger.warning("数字人接口成功但未返回 video_url: %s", result)
                     return None
                 if status == "failed":

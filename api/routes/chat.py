@@ -1,11 +1,13 @@
 """
 聊天路由 - 处理聊天相关的 API 请求
 """
-
+import asyncio
 import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
+
 from pydantic import BaseModel
 
 from ..services.rag_service import rag_service
@@ -61,7 +63,7 @@ async def initialize_system():
     首次调用会加载模型和构建知识库，可能需要较长时间
     """
     try:
-        result = rag_service.initialize()
+        result = await run_in_threadpool(rag_service.initialize)
         return InitResponse(**result)
     except Exception as e:
         logger.error(f"初始化失败: {e}")
@@ -87,7 +89,7 @@ async def send_message(request: ChatRequest):
     
     try:
         # 获取 RAG 系统回答
-        answer = rag_service.ask_question(request.message, stream=False)
+        answer = await run_in_threadpool(rag_service.ask_question, request.message, False)
         
         audio_url = None
         video_url = None
@@ -124,9 +126,10 @@ async def send_message(request: ChatRequest):
                     # 上传基础图在后端暴露为 /api/digital_human/avatar/image
                     image_url = "/api/digital_human/avatar/image"
                     # audio_url 形如 /api/tts/audio/xxx.mp3
-                    video_url = omnihuman_service.create_digital_human_video(
-                        image_url=image_url,
-                        audio_url=audio_url,
+                    video_url = await run_in_threadpool(
+                        omnihuman_service.create_digital_human_video,
+                        image_url,
+                        audio_url,
                     )
                     if video_url:
                         logger.info("数字人视频生成成功: %s", video_url)
@@ -165,25 +168,44 @@ async def stream_message(request: ChatRequest):
         )
     
     async def generate():
+        # 关键：RAG 的 stream 生成器是同步阻塞的；若直接在 async 里迭代会卡住事件循环，
+        # 导致其它请求（如数字人拉取图片/音频）无法响应。这里把生成放到后台线程，通过队列转发。
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+
+        def producer():
+            try:
+                stream_generator = rag_service.ask_question(request.message, stream=True)
+                if isinstance(stream_generator, str):
+                    loop.call_soon_threadsafe(queue.put_nowait, stream_generator)
+                    loop.call_soon_threadsafe(queue.put_nowait, None)
+                    return
+                for chunk in stream_generator:
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+            except Exception as e:
+                logger.error(f"流式处理失败: {e}")
+                loop.call_soon_threadsafe(queue.put_nowait, f"[ERROR] {str(e)}")
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        producer_task = asyncio.create_task(asyncio.to_thread(producer))
         try:
-            # 获取流式回答生成器
-            stream_generator = rag_service.ask_question(request.message, stream=True)
-            
-            # 如果返回的是字符串（非流式），直接返回
-            if isinstance(stream_generator, str):
-                yield f"data: {stream_generator}\n\n"
-                yield "data: [DONE]\n\n"
-                return
-            
-            # 流式输出
-            for chunk in stream_generator:
-                yield f"data: {chunk}\n\n"
-            
-            yield "data: [DONE]\n\n"
-            
-        except Exception as e:
-            logger.error(f"流式处理失败: {e}")
-            yield f"data: [ERROR] {str(e)}\n\n"
+            while True:
+                item = await queue.get()
+                if item is None:
+                    yield "data: [DONE]\n\n"
+                    return
+                yield f"data: {item}\n\n"
+                if item.startswith("[ERROR]"):
+                    yield "data: [DONE]\n\n"
+                    return
+        finally:
+            # 尽量等待 producer 收尾，避免线程池任务泄露（不强制阻塞太久）
+            if not producer_task.done():
+                try:
+                    await asyncio.wait_for(producer_task, timeout=1)
+                except Exception:
+                    pass
     
     return StreamingResponse(
         generate(),

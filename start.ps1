@@ -21,6 +21,7 @@ Write-Host ""
 
 # 显示启动模式选择菜单
 Write-Host "请选择启动模式:"
+
 Write-Host "1. 仅启动后端 API"
 Write-Host "2. 仅启动前端"
 Write-Host "3. 同时启动前后端 (推荐)"
