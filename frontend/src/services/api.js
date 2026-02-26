@@ -46,12 +46,18 @@ export const chatApi = {
    * @param {Object} options - 配置选项
    */
   async sendMessage(message, options = {}) {
-    return api.post('/chat/send', {
-      message,
-      enable_tts: options.enableTts ?? true,
-      voice: options.voice,
-      session_id: options.sessionId
-    })
+    // 数字人视频生成 + 下载可能较耗时，这里为聊天发送单独设置更长超时时间
+    const timeout = options.timeout ?? 5000000 // 
+    return api.post(
+      '/chat/send',
+      {
+        message,
+        enable_tts: options.enableTts ?? true,
+        voice: options.voice,
+        session_id: options.sessionId
+      },
+      { timeout }
+    )
   },
 
   /**
