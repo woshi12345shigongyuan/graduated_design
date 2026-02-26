@@ -55,6 +55,8 @@ const showClearConfirm = ref(false)
 const avatarStatus = inject('avatarStatus')
 const isSpeaking = inject('isSpeaking')
 const currentEmotion = inject('currentEmotion')
+const videoUrlToPlay = inject('videoUrlToPlay')
+const onPlaybackEnded = inject('onPlaybackEnded')
 
 // 确认清空
 function confirmClear() {
@@ -109,16 +111,18 @@ async function handleSend(message) {
     // 设置数字人为说话状态
     avatarStatus.value = 'speaking'
 
-    // 播放语音
-    if (response.audio_url && chatStore.voiceSettings.autoPlay) {
+    // 有数字人视频时在 Avatar 区播放视频（结束后由 Avatar 触发 onPlaybackEnded），否则仅播放音频
+    if (response.video_url && chatStore.voiceSettings.autoPlay) {
+      isSpeaking.value = true
+      if (videoUrlToPlay) videoUrlToPlay.value = response.video_url
+    } else if (response.audio_url && chatStore.voiceSettings.autoPlay) {
       try {
         isSpeaking.value = true
-        
         audioPlayer.onEnded = () => {
           isSpeaking.value = false
           avatarStatus.value = 'idle'
+          if (onPlaybackEnded) onPlaybackEnded()
         }
-        
         await audioPlayer.play(response.audio_url)
       } catch (error) {
         console.error('播放语音失败:', error)

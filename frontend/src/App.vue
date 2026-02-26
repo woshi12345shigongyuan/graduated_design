@@ -10,10 +10,20 @@
     <main class="app-main">
       <!-- 虚拟数字人区域 -->
       <div class="avatar-section">
+        <div class="avatar-actions">
+          <label class="upload-btn">
+            <input type="file" accept="image/*" @change="onAvatarFileChange" hidden />
+            {{ hasAvatar ? '更换图片' : '上传数字人基础图' }}
+          </label>
+          <button v-if="hasAvatar" type="button" class="delete-btn" @click="deleteAvatar">删除</button>
+        </div>
         <Avatar 
           :status="avatarStatus" 
           :is-speaking="isSpeaking"
           :emotion="currentEmotion"
+          :video-url="videoUrlToPlay"
+          :avatar-image-url="hasAvatar ? avatarImageUrl : null"
+          @playback-ended="onPlaybackEnded"
         />
       </div>
 
@@ -41,7 +51,7 @@ import { ref, computed, onMounted, provide } from 'vue'
 import { useChatStore } from './stores/chat'
 import ChatPanel from './components/ChatPanel.vue'
 import Avatar from './components/Avatar.vue'
-import { chatApi } from './services/api'
+import { chatApi, digitalHumanApi } from './services/api'
 
 const chatStore = useChatStore()
 
@@ -55,10 +65,52 @@ const avatarStatus = ref('idle') // idle, thinking, speaking
 const isSpeaking = ref(false)
 const currentEmotion = ref('neutral') // neutral, happy, confused, sorry
 
+// 数字人基础图：有图时才会调用即梦 API 生成视频
+const hasAvatar = ref(false)
+const avatarImageUrl = ref('')
+const videoUrlToPlay = ref(null) // 当前要播放的数字人视频 URL，由 ChatPanel 设置
+
 // 提供给子组件的状态
 provide('avatarStatus', avatarStatus)
 provide('isSpeaking', isSpeaking)
 provide('currentEmotion', currentEmotion)
+provide('videoUrlToPlay', videoUrlToPlay)
+provide('onPlaybackEnded', onPlaybackEnded)
+
+async function fetchAvatarStatus() {
+  try {
+    const res = await digitalHumanApi.getAvatarStatus()
+    hasAvatar.value = res.has_avatar === true
+    avatarImageUrl.value = res.has_avatar ? (res.avatar_url || digitalHumanApi.getAvatarImageUrl()) : ''
+  } catch (_) {
+    hasAvatar.value = false
+    avatarImageUrl.value = ''
+  }
+}
+
+function onAvatarFileChange(e) {
+  const file = e.target?.files?.[0]
+  if (!file || !file.type.startsWith('image/')) return
+  digitalHumanApi.uploadAvatar(file).then(() => {
+    fetchAvatarStatus()
+  }).catch(err => {
+    console.error('上传数字人基础图失败:', err)
+  })
+  e.target.value = ''
+}
+
+function deleteAvatar() {
+  digitalHumanApi.deleteAvatar().then(() => {
+    hasAvatar.value = false
+    avatarImageUrl.value = ''
+  }).catch(err => console.error('删除失败:', err))
+}
+
+function onPlaybackEnded() {
+  isSpeaking.value = false
+  avatarStatus.value = 'idle'
+  videoUrlToPlay.value = null
+}
 
 // 初始化系统
 async function initSystem() {
@@ -94,6 +146,7 @@ async function checkStatus() {
 
 onMounted(() => {
   checkStatus()
+  fetchAvatarStatus()
 })
 </script>
 
@@ -133,7 +186,38 @@ onMounted(() => {
 
 .avatar-section {
   flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
+
+.avatar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.upload-btn, .delete-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+}
+
+.upload-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.upload-btn:hover { opacity: 0.9; }
+
+.delete-btn {
+  background: rgba(200, 80, 80, 0.9);
+  color: white;
+}
+
+.delete-btn:hover { opacity: 0.9; }
 
 .chat-section {
   flex: 1;

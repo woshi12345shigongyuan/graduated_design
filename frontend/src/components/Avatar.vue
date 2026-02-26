@@ -7,9 +7,25 @@
       <div class="decoration-circle c3"></div>
     </div>
 
-    <!-- 数字人主体 -->
+    <!-- 数字人主体：有视频时播视频，否则展示基础图或默认 SVG -->
     <div class="avatar-body">
-      <svg viewBox="0 0 200 240" class="avatar-svg">
+      <video
+        v-if="videoUrl"
+        ref="videoEl"
+        class="avatar-video"
+        :src="videoUrl"
+        autoplay
+        playsinline
+        @ended="onVideoEnded"
+        @error="onVideoError"
+      />
+      <img
+        v-else-if="avatarImageUrl"
+        :src="avatarImageUrl"
+        alt="数字人基础图"
+        class="avatar-uploaded-img"
+      />
+      <svg v-else viewBox="0 0 200 240" class="avatar-svg">
         <!-- 身体 -->
         <ellipse cx="100" cy="220" rx="60" ry="30" class="body" />
         
@@ -107,8 +123,21 @@ const props = defineProps({
     type: String,
     default: 'neutral',
     validator: (v) => ['neutral', 'happy', 'confused', 'sorry'].includes(v)
-  }
+  },
+  videoUrl: { type: String, default: null },
+  avatarImageUrl: { type: String, default: null }
 })
+
+const emit = defineEmits(['playback-ended'])
+const videoEl = ref(null)
+
+function onVideoEnded() {
+  emit('playback-ended')
+}
+
+function onVideoError() {
+  emit('playback-ended')
+}
 
 // 眨眼状态
 const isBlinking = ref(false)
@@ -308,6 +337,18 @@ onUnmounted(() => {
 .avatar-svg {
   width: 200px;
   height: 240px;
+}
+
+.avatar-video,
+.avatar-uploaded-img {
+  width: 200px;
+  height: 240px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.avatar-video {
+  background: #000;
 }
 
 /* 头部动画 */

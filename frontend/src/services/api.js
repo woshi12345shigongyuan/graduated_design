@@ -140,4 +140,26 @@ export const ttsApi = {
   }
 }
 
+/**
+ * 数字人基础图 API
+ */
+export const digitalHumanApi = {
+  async getAvatarStatus() {
+    return api.get('/digital_human/avatar/status')
+  },
+  async uploadAvatar(file) {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/digital_human/avatar', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  async deleteAvatar() {
+    return api.delete('/digital_human/avatar')
+  },
+  getAvatarImageUrl() {
+    return '/api/digital_human/avatar/image'
+  }
+}
+
 export default api
