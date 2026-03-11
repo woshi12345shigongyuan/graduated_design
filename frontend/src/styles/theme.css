@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+
+:root {
+  --bg-base: #04070f;
+  --bg-elevated: #0b1120;
+  --bg-panel: rgba(14, 22, 36, 0.66);
+  --bg-panel-strong: rgba(12, 19, 31, 0.9);
+  --text-main: #ebf2ff;
+  --text-muted: #8ea4be;
+  --text-faint: #6e829d;
+  --line-soft: rgba(130, 162, 198, 0.22);
+  --line-strong: rgba(168, 206, 252, 0.42);
+  --accent-cyan: #7bc4ff;
+  --accent-purple: #8d83ff;
+  --accent-mint: #75d6bf;
+  --accent-rose: #f47ca5;
+  --danger: #f57389;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --shadow-main: 0 20px 60px rgba(2, 6, 16, 0.55);
+  --shadow-soft: 0 10px 30px rgba(2, 6, 16, 0.36);
+  --font-display: 'Rajdhani', 'DIN Alternate', 'Avenir Next', sans-serif;
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  position: relative;
+  color: var(--text-main);
+  font-family: var(--font-body);
+  background-color: var(--bg-base);
+  background-image:
+    radial-gradient(42rem 42rem at 90% -6%, rgba(133, 94, 255, 0.23), transparent 66%),
+    radial-gradient(34rem 34rem at -8% 8%, rgba(103, 166, 255, 0.18), transparent 60%),
+    linear-gradient(145deg, #04070f 0%, #060c18 50%, #03060d 100%);
+  background-attachment: fixed;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: '';
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+}
+
+body::before {
+  background-image:
+    linear-gradient(rgba(142, 164, 190, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(142, 164, 190, 0.08) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.7), transparent 92%);
+  z-index: -2;
+}
+
+body::after {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(126, 186, 255, 0.12), transparent 48%),
+    radial-gradient(circle at 78% 72%, rgba(121, 213, 192, 0.1), transparent 52%);
+  filter: blur(48px);
+  opacity: 0.8;
+  animation: auroraShift 14s ease-in-out infinite alternate;
+  z-index: -3;
+}
+
+@keyframes auroraShift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-2%, 2%, 0) scale(1.06);
+  }
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.display-font {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  color: #05111e;
+  background: rgba(120, 178, 248, 0.78);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: rgba(127, 176, 233, 0.45);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(8, 15, 26, 0.35);
+}
+
+.glass-panel {
+  background: linear-gradient(145deg, rgba(16, 24, 38, 0.78), rgba(10, 16, 28, 0.62));
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.neon-btn {
+  border: 1px solid rgba(142, 176, 219, 0.4);
+  border-radius: 999px;
+  color: var(--text-main);
+  background: rgba(13, 22, 35, 0.75);
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.neon-btn:hover {
+  border-color: rgba(124, 186, 247, 0.82);
+  box-shadow: 0 0 0 1px rgba(124, 186, 247, 0.32), 0 8px 20px rgba(57, 110, 168, 0.25);
+  transform: translateY(-1px);
+}
+
+.pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+}
+
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  opacity: 0.35;
+  animation: pulseDot 1.8s ease-out infinite;
+}
+
+@keyframes pulseDot {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.52;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  body::before {
+    background-size: 34px 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
