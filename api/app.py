@@ -16,7 +16,8 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -28,6 +29,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 from .routes import chat_router, tts_router, digital_human_router
+from .routes.digital_human import get_current_avatar_path
 
 # 配置日志
 logging.basicConfig(
@@ -113,6 +115,19 @@ async def health_check():
         "status": "healthy",
         "rag_ready": rag_service.is_ready
     }
+
+
+@app.get("/current.jpg", include_in_schema=False)
+async def legacy_current_avatar():
+    """兼容旧版数字人图片地址：/current.jpg"""
+    path = get_current_avatar_path()
+    if not path:
+        raise HTTPException(status_code=404, detail="未设置数字人基础图")
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"}
+    )
 
 
 if __name__ == "__main__":

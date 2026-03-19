@@ -14,10 +14,14 @@
       <div class="avatar-stage">
         <video
           v-if="videoUrl"
+          ref="videoRef"
           class="avatar-video"
           :src="videoUrl"
+          :muted="isMutedAutoplay"
           autoplay
           playsinline
+          webkit-playsinline="true"
+          @loadeddata="ensureVideoAutoPlay"
           @ended="onVideoEnded"
           @error="onVideoError"
         ></video>
@@ -84,7 +88,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const props = defineProps({
   status: {
@@ -117,6 +121,8 @@ const isBlinking = ref(false)
 const pupilOffsetX = ref(0)
 const pupilOffsetY = ref(0)
 const mouthOpenness = ref(0)
+const videoRef = ref(null)
+const isMutedAutoplay = ref(false)
 
 let blinkInterval = null
 let speakingInterval = null
@@ -197,6 +203,27 @@ function onVideoError() {
   emit('playback-ended')
 }
 
+async function ensureVideoAutoPlay() {
+  const videoEl = videoRef.value
+  if (!videoEl || !props.videoUrl || !videoEl.paused) return
+
+  try {
+    await videoEl.play()
+  } catch (error) {
+    try {
+      isMutedAutoplay.value = true
+      await nextTick()
+      const retryVideoEl = videoRef.value
+      if (!retryVideoEl) return
+      retryVideoEl.muted = true
+      await retryVideoEl.play()
+    } catch (retryError) {
+      console.error('视频自动播放失败:', retryError)
+      emit('playback-ended')
+    }
+  }
+}
+
 function startBlinking() {
   blinkInterval = setInterval(() => {
     if (Math.random() > 0.7) {
@@ -250,6 +277,16 @@ watch(
     } else {
       stopSpeaking()
     }
+  }
+)
+
+watch(
+  () => props.videoUrl,
+  async (newVideoUrl) => {
+    isMutedAutoplay.value = false
+    if (!newVideoUrl) return
+    await nextTick()
+    await ensureVideoAutoPlay()
   }
 )
 

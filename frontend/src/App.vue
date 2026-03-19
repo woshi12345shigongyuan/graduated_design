@@ -142,12 +142,17 @@ function createParticleStyle(index) {
   }
 }
 
+function withCacheBuster(url) {
+  const joiner = url.includes('?') ? '&' : '?'
+  return `${url}${joiner}t=${Date.now()}`
+}
+
 async function fetchAvatarStatus() {
   try {
     const res = await digitalHumanApi.getAvatarStatus()
     hasAvatar.value = res.has_avatar === true
     avatarImageUrl.value = res.has_avatar
-      ? (res.avatar_url || digitalHumanApi.getAvatarImageUrl())
+      ? withCacheBuster(res.avatar_url || digitalHumanApi.getAvatarImageUrl())
       : ''
   } catch (_) {
     hasAvatar.value = false

@@ -106,4 +106,8 @@ async def get_avatar_image():
     path = get_current_avatar_path()
     if not path:
         raise HTTPException(status_code=404, detail="未设置数字人基础图")
-    return FileResponse(path, media_type="image/jpeg")
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"}
+    )
