@@ -1,154 +1,159 @@
 <template>
   <div class="chat-panel">
-    <!-- 头部工具栏 -->
-    <div class="chat-header">
-      <div class="header-left">
-        <span class="chat-title">对话</span>
-        <span v-if="chatStore.hasMessages" class="message-count">
-          {{ chatStore.messages.length }} 条消息
-        </span>
+    <header class="chat-header">
+      <div class="header-main">
+        <p class="header-kicker">Conversation Core</p>
+        <h3>智能对话工作区</h3>
+        <p class="header-meta">
+          <span>{{ chatStore.hasMessages ? `${chatStore.messages.length} 条消息` : '尚无消息' }}</span>
+          <i></i>
+          <span>{{ chatStore.isLoading ? '模型响应中' : '等待输入' }}</span>
+        </p>
       </div>
-      <div class="header-right">
-        <button 
-          v-if="chatStore.hasMessages" 
-          @click="confirmClear" 
-          class="clear-btn"
-          title="清空对话"
+
+      <div class="header-actions">
+        <button
+          class="header-btn neon-btn"
+          :class="{ active: chatStore.voiceSettings.autoPlay }"
+          :title="chatStore.voiceSettings.autoPlay ? '点击关闭自动语音播报' : '点击开启自动语音播报'"
+          @click="toggleAutoPlay"
         >
-          🗑️ 清空
+          自动播报 {{ chatStore.voiceSettings.autoPlay ? '开' : '关' }}
+        </button>
+
+        <button
+          v-if="chatStore.hasMessages"
+          class="header-btn clear-btn"
+          title="清空对话"
+          @click="confirmClear"
+        >
+          清空记录
         </button>
       </div>
-    </div>
+    </header>
 
-    <!-- 消息列表 -->
-    <MessageList ref="messageListRef" />
+    <MessageList ref="messageListRef" @example="handleSend" />
 
-    <!-- 输入区域 -->
     <MessageInput @send="handleSend" />
 
-    <!-- 清空确认对话框 -->
-    <div v-if="showClearConfirm" class="confirm-overlay" @click="showClearConfirm = false">
-      <div class="confirm-dialog" @click.stop>
-        <p>确定要清空所有对话记录吗？</p>
-        <div class="confirm-buttons">
-          <button @click="showClearConfirm = false" class="cancel-btn">取消</button>
-          <button @click="handleClear" class="confirm-btn">确定</button>
+    <transition name="dialog-fade">
+      <div v-if="showClearConfirm" class="confirm-overlay" @click="showClearConfirm = false">
+        <div class="confirm-dialog glass-panel" @click.stop>
+          <p class="dialog-title">确认清空会话记录？</p>
+          <p class="dialog-desc">该操作会移除本地存储中的当前会话消息，不影响后端服务。</p>
+          <div class="dialog-actions">
+            <button class="dialog-btn" @click="showClearConfirm = false">取消</button>
+            <button class="dialog-btn danger" @click="handleClear">确认清空</button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, inject, nextTick } from 'vue'
+import { inject, nextTick, ref } from 'vue'
 import { useChatStore } from '../stores/chat'
 import { chatApi } from '../services/api'
 import { audioPlayer } from '../services/speech'
-import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
+import MessageList from './MessageList.vue'
 
 const chatStore = useChatStore()
 const messageListRef = ref(null)
 const showClearConfirm = ref(false)
 
-// 注入数字人状态控制
-const avatarStatus = inject('avatarStatus')
-const isSpeaking = inject('isSpeaking')
-const currentEmotion = inject('currentEmotion')
-const videoUrlToPlay = inject('videoUrlToPlay')
-const onPlaybackEnded = inject('onPlaybackEnded')
+const avatarStatus = inject('avatarStatus', ref('idle'))
+const isSpeaking = inject('isSpeaking', ref(false))
+const currentEmotion = inject('currentEmotion', ref('neutral'))
+const videoUrlToPlay = inject('videoUrlToPlay', ref(null))
+const onPlaybackEnded = inject('onPlaybackEnded', () => {})
 
-// 确认清空
 function confirmClear() {
   showClearConfirm.value = true
 }
 
-// 执行清空
 function handleClear() {
   chatStore.clearMessages()
   showClearConfirm.value = false
 }
 
-// 发送消息
-async function handleSend(message) {
-  if (!message.trim() || chatStore.isLoading) return
+function toggleAutoPlay() {
+  chatStore.updateVoiceSettings({ autoPlay: !chatStore.voiceSettings.autoPlay })
+}
 
-  // 添加用户消息
+async function handleSend(rawMessage) {
+  const message = String(rawMessage ?? '').trim()
+  if (!message || chatStore.isLoading) return
+
   chatStore.addUserMessage(message)
   chatStore.setLoading(true)
 
-  // 设置数字人为思考状态
   avatarStatus.value = 'thinking'
   currentEmotion.value = 'neutral'
 
-  // 添加助手正在输入的占位消息
   const typingMessage = chatStore.addTypingMessage()
 
-  // 滚动到底部
   await nextTick()
   if (messageListRef.value) {
     messageListRef.value.scrollToBottom()
   }
 
   try {
-    // 调用 API 获取回复
     const response = await chatApi.sendMessage(message, {
       enableTts: chatStore.voiceSettings.enabled,
       voice: chatStore.voiceSettings.voice,
       sessionId: chatStore.sessionId
     })
 
-    // 更新消息内容
+    const answerText = response.answer || '暂时没有获取到有效回复，请稍后再试。'
+
     chatStore.updateMessage(typingMessage.id, {
-      content: response.answer,
+      content: answerText,
       audioUrl: response.audio_url,
-      isTyping: false
+      isTyping: false,
+      isError: false
     })
 
-    // 根据回复内容设置表情
-    setEmotionFromAnswer(response.answer)
-
-    // 设置数字人为说话状态
+    setEmotionFromAnswer(answerText)
     avatarStatus.value = 'speaking'
 
-    // 有数字人视频时在 Avatar 区播放视频（结束后由 Avatar 触发 onPlaybackEnded），否则仅播放音频
     if (response.video_url && chatStore.voiceSettings.autoPlay) {
       isSpeaking.value = true
-      if (videoUrlToPlay) videoUrlToPlay.value = response.video_url
+      videoUrlToPlay.value = response.video_url
     } else if (response.audio_url && chatStore.voiceSettings.autoPlay) {
+      isSpeaking.value = true
+      audioPlayer.onEnded = () => {
+        isSpeaking.value = false
+        avatarStatus.value = 'idle'
+        onPlaybackEnded()
+      }
       try {
-        isSpeaking.value = true
-        audioPlayer.onEnded = () => {
-          isSpeaking.value = false
-          avatarStatus.value = 'idle'
-          if (onPlaybackEnded) onPlaybackEnded()
-        }
         await audioPlayer.play(response.audio_url)
-      } catch (error) {
-        console.error('播放语音失败:', error)
+      } catch (playError) {
+        console.error('播放语音失败:', playError)
         isSpeaking.value = false
         avatarStatus.value = 'idle'
       }
     } else {
       avatarStatus.value = 'idle'
+      isSpeaking.value = false
     }
-
   } catch (error) {
     console.error('发送消息失败:', error)
-    
-    // 更新为错误消息
+
     chatStore.updateMessage(typingMessage.id, {
-      content: '抱歉，发生了错误，请稍后重试。',
+      content: '抱歉，当前请求失败。请检查后端服务状态后重试。',
       isTyping: false,
       isError: true
     })
 
     currentEmotion.value = 'sorry'
     avatarStatus.value = 'idle'
+    isSpeaking.value = false
   } finally {
     chatStore.setLoading(false)
-    
-    // 滚动到底部
+
     await nextTick()
     if (messageListRef.value) {
       messageListRef.value.scrollToBottom()
@@ -156,134 +161,186 @@ async function handleSend(message) {
   }
 }
 
-// 根据回复内容设置表情
 function setEmotionFromAnswer(answer) {
   if (answer.includes('抱歉') || answer.includes('没有找到') || answer.includes('无法')) {
     currentEmotion.value = 'sorry'
-  } else if (answer.includes('推荐') || answer.includes('美味') || answer.includes('好吃')) {
-    currentEmotion.value = 'happy'
-  } else if (answer.includes('？') || answer.includes('请问') || answer.includes('是否')) {
-    currentEmotion.value = 'confused'
-  } else {
-    currentEmotion.value = 'neutral'
+    return
   }
+
+  if (answer.includes('推荐') || answer.includes('美味') || answer.includes('好吃')) {
+    currentEmotion.value = 'happy'
+    return
+  }
+
+  if (answer.includes('？') || answer.includes('请问') || answer.includes('是否')) {
+    currentEmotion.value = 'confused'
+    return
+  }
+
+  currentEmotion.value = 'neutral'
 }
 </script>
 
 <style scoped>
 .chat-panel {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 180px);
-  min-height: 500px;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  height: 100%;
+  min-height: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(138, 169, 204, 0.24);
+  background: linear-gradient(160deg, rgba(10, 17, 30, 0.82), rgba(8, 14, 24, 0.66));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(112, 156, 211, 0.08);
 }
 
 .chat-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  gap: 14px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(116, 149, 185, 0.24);
+  background: linear-gradient(180deg, rgba(16, 28, 46, 0.75), rgba(12, 20, 34, 0.45));
 }
 
-.header-left {
+.header-main {
+  min-width: 0;
+}
+
+.header-kicker {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.header-main h3 {
+  margin: 8px 0 6px;
+  font-size: clamp(1.02rem, 1.4vw, 1.24rem);
+}
+
+.header-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-meta i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(154, 182, 214, 0.6);
+}
+
+.header-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 8px;
 }
 
-.chat-title {
-  font-size: 1.2rem;
-  font-weight: 600;
+.header-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(131, 165, 207, 0.34);
+  background: rgba(11, 20, 34, 0.7);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  transition: border-color 0.22s ease, color 0.22s ease, transform 0.22s ease;
 }
 
-.message-count {
-  font-size: 0.85rem;
-  opacity: 0.8;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 2px 10px;
-  border-radius: 10px;
+.header-btn.active {
+  border-color: rgba(124, 183, 248, 0.7);
+  color: #d9ecff;
+}
+
+.header-btn:hover {
+  transform: translateY(-1px);
+  color: var(--text-main);
 }
 
 .clear-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background 0.2s;
+  border-color: rgba(243, 130, 157, 0.5);
+  color: #ffc4d3;
 }
 
 .clear-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(244, 129, 160, 0.8);
+  color: #ffe2e8;
 }
 
-/* 确认对话框 */
 .confirm-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  inset: 0;
+  z-index: 30;
+  background: rgba(4, 8, 15, 0.7);
+  display: grid;
+  place-items: center;
+  padding: 16px;
 }
 
 .confirm-dialog {
-  background: white;
-  padding: 24px;
-  border-radius: 12px;
-  text-align: center;
-  min-width: 280px;
+  width: min(380px, 100%);
+  padding: 20px;
+  border-radius: 16px;
 }
 
-.confirm-dialog p {
-  margin-bottom: 20px;
-  font-size: 1.1rem;
-  color: #333;
+.dialog-title {
+  margin: 0;
+  font-size: 1.05rem;
 }
 
-.confirm-buttons {
+.dialog-desc {
+  margin: 8px 0 16px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.dialog-actions {
   display: flex;
-  gap: 12px;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.cancel-btn, .confirm-btn {
-  padding: 8px 24px;
-  border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
+.dialog-btn {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(136, 170, 209, 0.35);
+  background: rgba(11, 19, 33, 0.72);
+  color: var(--text-main);
+  padding: 0 14px;
 }
 
-.cancel-btn {
-  background: #f0f0f0;
-  border: none;
-  color: #666;
+.dialog-btn.danger {
+  background: rgba(243, 99, 128, 0.14);
+  border-color: rgba(243, 126, 152, 0.48);
+  color: #ffc6d4;
 }
 
-.cancel-btn:hover {
-  background: #e0e0e0;
+.dialog-fade-enter-active,
+.dialog-fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-.confirm-btn {
-  background: #e74c3c;
-  border: none;
-  color: white;
+.dialog-fade-enter-from,
+.dialog-fade-leave-to {
+  opacity: 0;
 }
 
-.confirm-btn:hover {
-  background: #c0392b;
+@media (max-width: 760px) {
+  .chat-header {
+    flex-direction: column;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
 }
 </style>
