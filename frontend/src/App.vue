@@ -69,6 +69,50 @@
         </div>
 
         <p class="panel-note">提示：上传正面清晰头像后，系统可生成语音驱动视频回答。</p>
+
+        <div class="knowledge-manager">
+          <div class="knowledge-header">
+            <p class="panel-kicker">Knowledge Dock</p>
+            <h3>RAG 文档管理</h3>
+          </div>
+
+          <label class="action-btn upload-btn neon-btn" :class="{ disabled: isDocumentUploading }">
+            <input
+              type="file"
+              accept=".md,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              :disabled="isDocumentUploading"
+              @change="onKnowledgeFileChange"
+              hidden
+            >
+            {{ isDocumentUploading ? '上传中...' : '上传文档（.md/.txt/.pdf/.docx）' }}
+          </label>
+
+          <p class="panel-note">提示：支持 md/txt/pdf/docx，上传/删除后会自动刷新 RAG 知识库。</p>
+          <p v-if="documentNotice" class="doc-notice" :class="{ error: isDocumentNoticeError }">
+            {{ documentNotice }}
+          </p>
+
+          <div class="doc-list-wrapper">
+            <p v-if="isDocumentsLoading" class="doc-placeholder">正在加载文档列表...</p>
+            <p v-else-if="uploadedDocuments.length === 0" class="doc-placeholder">暂无已上传文档</p>
+            <ul v-else class="doc-list">
+              <li v-for="doc in uploadedDocuments" :key="doc.filename" class="doc-item">
+                <div class="doc-meta">
+                  <p class="doc-name">{{ doc.filename }}</p>
+                  <p class="doc-time">{{ formatDocumentTime(doc.updated_at) }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="doc-delete-btn"
+                  :disabled="isDocumentUploading || deletingDocumentName === doc.filename"
+                  @click="deleteKnowledgeDocument(doc.filename)"
+                >
+                  {{ deletingDocumentName === doc.filename ? '删除中...' : '删除' }}
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       <section class="chat-panel-wrapper glass-panel">
@@ -99,7 +143,7 @@
 import { ref, computed, onMounted, provide } from 'vue'
 import ChatPanel from './components/ChatPanel.vue'
 import Avatar from './components/Avatar.vue'
-import { chatApi, digitalHumanApi } from './services/api'
+import { chatApi, digitalHumanApi, knowledgeApi } from './services/api'
 
 const isReady = ref(false)
 const isInitializing = ref(false)
@@ -112,6 +156,12 @@ const currentEmotion = ref('neutral')
 const hasAvatar = ref(false)
 const avatarImageUrl = ref('')
 const videoUrlToPlay = ref(null)
+const uploadedDocuments = ref([])
+const isDocumentsLoading = ref(false)
+const isDocumentUploading = ref(false)
+const deletingDocumentName = ref('')
+const documentNotice = ref('')
+const isDocumentNoticeError = ref(false)
 
 const systemStateText = computed(() => {
   if (isReady.value) return '在线'
@@ -147,6 +197,24 @@ function withCacheBuster(url) {
   return `${url}${joiner}t=${Date.now()}`
 }
 
+function setDocumentNotice(message, isError = false) {
+  documentNotice.value = message
+  isDocumentNoticeError.value = isError
+}
+
+function formatDocumentTime(isoTime) {
+  if (!isoTime) return ''
+  const date = new Date(isoTime)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 async function fetchAvatarStatus() {
   try {
     const res = await digitalHumanApi.getAvatarStatus()
@@ -157,6 +225,19 @@ async function fetchAvatarStatus() {
   } catch (_) {
     hasAvatar.value = false
     avatarImageUrl.value = ''
+  }
+}
+
+async function fetchKnowledgeDocuments() {
+  isDocumentsLoading.value = true
+  try {
+    const result = await knowledgeApi.listDocuments()
+    uploadedDocuments.value = Array.isArray(result.documents) ? result.documents : []
+  } catch (error) {
+    console.error('获取文档列表失败:', error)
+    setDocumentNotice('获取文档列表失败，请检查后端服务是否运行。', true)
+  } finally {
+    isDocumentsLoading.value = false
   }
 }
 
@@ -185,6 +266,61 @@ function deleteAvatar() {
     .catch((error) => {
       console.error('删除数字人基础图失败:', error)
     })
+}
+
+async function onKnowledgeFileChange(event) {
+  const file = event.target?.files?.[0]
+  if (!file) return
+
+  const lowerName = file.name.toLowerCase()
+  const isAllowed =
+    lowerName.endsWith('.md') ||
+    lowerName.endsWith('.txt') ||
+    lowerName.endsWith('.pdf') ||
+    lowerName.endsWith('.docx')
+  if (!isAllowed) {
+    setDocumentNotice('仅支持上传 .md/.txt/.pdf/.docx 文件。', true)
+    event.target.value = ''
+    return
+  }
+
+  isDocumentUploading.value = true
+  setDocumentNotice('正在上传文档并更新知识库...')
+
+  try {
+    const response = await knowledgeApi.uploadDocument(file)
+    setDocumentNotice(response.message || '文档上传成功。')
+    await fetchKnowledgeDocuments()
+  } catch (error) {
+    console.error('上传知识库文档失败:', error)
+    const detail = error?.response?.data?.detail
+    setDocumentNotice(detail ? `上传失败：${detail}` : '上传失败，请稍后重试。', true)
+  } finally {
+    isDocumentUploading.value = false
+    event.target.value = ''
+  }
+}
+
+async function deleteKnowledgeDocument(filename) {
+  if (!filename) return
+
+  const confirmed = window.confirm(`确认删除文档「${filename}」吗？`)
+  if (!confirmed) return
+
+  deletingDocumentName.value = filename
+  setDocumentNotice('正在删除文档并更新知识库...')
+
+  try {
+    const response = await knowledgeApi.deleteDocument(filename)
+    setDocumentNotice(response.message || '文档删除成功。')
+    await fetchKnowledgeDocuments()
+  } catch (error) {
+    console.error('删除知识库文档失败:', error)
+    const detail = error?.response?.data?.detail
+    setDocumentNotice(detail ? `删除失败：${detail}` : '删除失败，请稍后重试。', true)
+  } finally {
+    deletingDocumentName.value = ''
+  }
 }
 
 function onPlaybackEnded() {
@@ -231,6 +367,7 @@ async function checkStatus() {
 onMounted(() => {
   checkStatus()
   fetchAvatarStatus()
+  fetchKnowledgeDocuments()
 })
 </script>
 
@@ -444,6 +581,11 @@ onMounted(() => {
   justify-content: center;
 }
 
+.action-btn.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .upload-btn {
   color: var(--text-main);
 }
@@ -466,6 +608,113 @@ onMounted(() => {
   color: var(--text-faint);
   font-size: 0.83rem;
   line-height: 1.55;
+}
+
+.knowledge-manager {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(136, 164, 197, 0.25);
+  display: grid;
+  gap: 10px;
+}
+
+.knowledge-header h3 {
+  margin: 7px 0 0;
+  font-size: 1.02rem;
+}
+
+.doc-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(115, 186, 236, 0.35);
+  background: rgba(16, 46, 74, 0.32);
+  color: #bfe6ff;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.doc-notice.error {
+  border-color: rgba(243, 126, 152, 0.5);
+  background: rgba(77, 24, 41, 0.32);
+  color: #ffc4d2;
+}
+
+.doc-list-wrapper {
+  border: 1px solid rgba(130, 162, 197, 0.28);
+  border-radius: 12px;
+  background: rgba(9, 16, 27, 0.58);
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.doc-placeholder {
+  margin: 0;
+  padding: 12px;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+.doc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doc-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(121, 151, 183, 0.2);
+}
+
+.doc-item:last-child {
+  border-bottom: none;
+}
+
+.doc-meta {
+  min-width: 0;
+}
+
+.doc-name,
+.doc-time {
+  margin: 0;
+}
+
+.doc-name {
+  color: var(--text-main);
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.doc-time {
+  color: var(--text-faint);
+  font-size: 0.74rem;
+  margin-top: 3px;
+}
+
+.doc-delete-btn {
+  flex-shrink: 0;
+  min-width: 58px;
+  min-height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(243, 126, 152, 0.48);
+  color: #ffcad8;
+  background: rgba(246, 97, 127, 0.12);
+  font-size: 0.75rem;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.doc-delete-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(248, 140, 165, 0.72);
+}
+
+.doc-delete-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chat-panel-wrapper {

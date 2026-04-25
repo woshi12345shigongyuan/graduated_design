@@ -28,7 +28,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # 设置 Hugging Face 镜像
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
-from .routes import chat_router, tts_router, digital_human_router
+from .routes import chat_router, tts_router, digital_human_router, knowledge_router
 from .routes.digital_human import get_current_avatar_path
 
 # 配置日志
@@ -81,6 +81,7 @@ async def add_ngrok_skip_header(request, call_next):
 app.include_router(chat_router)
 app.include_router(tts_router)
 app.include_router(digital_human_router)
+app.include_router(knowledge_router)
 
 # 挂载静态文件（音频、数字人视频）
 audio_dir = PROJECT_ROOT / "audio"

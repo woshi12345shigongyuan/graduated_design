@@ -111,27 +111,52 @@ class RAGService:
             logger.error(f"RAG 系统初始化失败: {e}")
             return {"status": "error", "message": str(e)}
     
-    def _build_knowledge_base(self):
+    def _build_knowledge_base(self, force_rebuild: bool = False):
         """构建知识库"""
         logger.info("正在构建知识库...")
-        
-        # 尝试加载已保存的索引
-        vectorstore = self.index_module.load_index()
-        
-        if vectorstore is not None:
-            logger.info("成功加载已保存的向量索引")
-            self.data_module.load_documents()
-            chunks = self.data_module.chunk_documents()
-        else:
-            logger.info("未找到已保存的索引，开始构建新索引...")
-            self.data_module.load_documents()
-            chunks = self.data_module.chunk_documents()
+
+        self.data_module.load_documents()
+        chunks = self.data_module.chunk_documents()
+
+        if force_rebuild:
+            logger.info("已启用强制重建，将重新生成向量索引...")
             vectorstore = self.index_module.build_vector_index(chunks)
             self.index_module.save_index()
+        else:
+            # 尝试加载已保存的索引
+            vectorstore = self.index_module.load_index()
+            if vectorstore is not None:
+                logger.info("成功加载已保存的向量索引")
+            else:
+                logger.info("未找到已保存的索引，开始构建新索引...")
+                vectorstore = self.index_module.build_vector_index(chunks)
+                self.index_module.save_index()
         
         # 初始化检索优化模块
         self.retrieval_module = RetrievalOptimizationModule(vectorstore, chunks)
         logger.info("知识库构建完成")
+
+    def rebuild_knowledge_base(self) -> Dict[str, Any]:
+        """
+        根据当前文档目录强制重建知识库（用于上传/删除文档后即时生效）
+        """
+        if not all([self.data_module, self.index_module, self.generation_module]):
+            return {
+                "status": "skipped",
+                "message": "RAG 系统尚未初始化，文档将在初始化后生效"
+            }
+
+        try:
+            self._build_knowledge_base(force_rebuild=True)
+            self._ready = True
+            return {
+                "status": "success",
+                "message": "知识库已根据最新文档更新",
+                "statistics": self.data_module.get_statistics()
+            }
+        except Exception as e:
+            logger.error(f"知识库重建失败: {e}")
+            return {"status": "error", "message": str(e)}
     
     def ask_question(self, question: str, stream: bool = False):
         """

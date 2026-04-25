@@ -168,4 +168,23 @@ export const digitalHumanApi = {
   }
 }
 
+/**
+ * RAG 知识库文档管理 API
+ */
+export const knowledgeApi = {
+  async listDocuments() {
+    return api.get('/knowledge/documents')
+  },
+  async uploadDocument(file) {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/knowledge/documents', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  async deleteDocument(filename) {
+    return api.delete(`/knowledge/documents/${encodeURIComponent(filename)}`)
+  }
+}
+
 export default api
