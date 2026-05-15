@@ -1,7 +1,7 @@
 {
   "name": "changchangxiandan-frontend",
   "version": "1.0.0",
-  "description": "尝尝咸淡 - 食谱智能问答前端",
+  "description": "食谱智能问答前端",
   "type": "module",
   "scripts": {
     "dev": "vite",

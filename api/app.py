@@ -1,5 +1,5 @@
 """
-尝尝咸淡 API - FastAPI 应用入口
+智能食谱 API - FastAPI 应用入口
 """
 
 import os
@@ -29,7 +29,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 from .routes import chat_router, tts_router, digital_human_router, knowledge_router
-from .routes.digital_human import get_current_avatar_path
+from .routes.digital_human import get_current_avatar_media_type, get_current_avatar_path
 
 # 配置日志
 logging.basicConfig(
@@ -40,9 +40,9 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     """应用生命周期管理"""
-    logger.info("尝尝咸淡 API 启动中...")
+    logger.info("智能食谱 API 启动中...")
     
     # 确保音频目录存在
     audio_dir = PROJECT_ROOT / "audio"
@@ -50,12 +50,12 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    logger.info("尝尝咸淡 API 关闭")
+    logger.info("智能食谱 API 关闭")
 
 
 # 创建 FastAPI 应用
 app = FastAPI(
-    title="尝尝咸淡 API",
+    title="智能食谱 API",
     description="食谱 RAG 系统 API，支持智能问答和语音合成",
     version="1.0.0",
     lifespan=lifespan
@@ -71,7 +71,7 @@ app.add_middleware(
 )
 
 # 添加 ngrok 警告跳过中间件
-@app.middleware("https")
+@app.middleware("http")
 async def add_ngrok_skip_header(request, call_next):
     response = await call_next(request)
     response.headers["ngrok-skip-browser-warning"] = "1"
@@ -96,7 +96,7 @@ app.mount("/api/digital_human/video", StaticFiles(directory=str(video_dir)), nam
 async def root():
     """API 根路径"""
     return {
-        "name": "尝尝咸淡 API",
+        "name": "智能食谱 API",
         "version": "1.0.0",
         "description": "食谱 RAG 智能问答系统",
         "endpoints": {
@@ -126,7 +126,7 @@ async def legacy_current_avatar():
         raise HTTPException(status_code=404, detail="未设置数字人基础图")
     return FileResponse(
         path,
-        media_type="image/jpeg",
+        media_type=get_current_avatar_media_type(),
         headers={"Cache-Control": "no-store, no-cache, must-revalidate"}
     )
 

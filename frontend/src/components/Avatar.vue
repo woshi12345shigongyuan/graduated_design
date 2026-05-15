@@ -304,26 +304,21 @@ onUnmounted(() => {
 .avatar-shell {
   position: relative;
   width: 100%;
+  height: 100%;
 }
 
 .holo-ring {
-  position: absolute;
-  inset: -20px -8px;
-  border-radius: 32px;
-  background:
-    radial-gradient(circle at 70% 12%, rgba(125, 175, 244, 0.24), transparent 44%),
-    radial-gradient(circle at 12% 86%, rgba(119, 224, 196, 0.2), transparent 42%);
-  filter: blur(16px);
-  z-index: 0;
+  display: none;
 }
 
 .avatar-card {
   position: relative;
   z-index: 1;
   border-radius: 18px;
-  border: 1px solid rgba(137, 171, 208, 0.3);
-  background: linear-gradient(160deg, rgba(11, 20, 33, 0.82), rgba(9, 15, 27, 0.68));
-  padding: 12px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  height: 100%;
 }
 
 .avatar-head {
@@ -369,12 +364,10 @@ onUnmounted(() => {
 .avatar-stage {
   position: relative;
   min-height: 260px;
-  border-radius: 14px;
-  border: 1px solid rgba(129, 164, 202, 0.3);
-  background:
-    radial-gradient(circle at 18% 20%, rgba(119, 174, 239, 0.14), transparent 55%),
-    radial-gradient(circle at 78% 80%, rgba(109, 207, 182, 0.12), transparent 56%),
-    rgba(8, 15, 26, 0.85);
+  height: 100%;
+  border-radius: 18px;
+  border: none;
+  background: transparent;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -386,21 +379,22 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  border-radius: inherit;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .avatar-svg {
-  width: min(220px, 95%);
-  height: auto;
-  max-height: 250px;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .scan-line {
-  position: absolute;
-  inset: -30% 0 auto;
-  height: 40%;
-  background: linear-gradient(180deg, transparent, rgba(160, 211, 255, 0.2), transparent);
-  animation: scanDown 4.5s linear infinite;
-  pointer-events: none;
+  display: none;
 }
 
 @keyframes scanDown {
@@ -579,6 +573,43 @@ onUnmounted(() => {
   .avatar-stage {
     min-height: 320px;
   }
+}
+
+:global(.avatar-compact) .avatar-card {
+  height: 100%;
+  padding: 0;
+  border-radius: 14px;
+  background: transparent;
+}
+
+:global(.avatar-compact) .avatar-shell {
+  height: 100%;
+}
+
+:global(.avatar-compact) .avatar-head,
+:global(.avatar-compact) .status-text {
+  display: none;
+}
+
+:global(.avatar-compact) .avatar-stage {
+  min-height: 100%;
+  height: 100%;
+  border-radius: 14px;
+  background: transparent;
+  border: none;
+}
+
+:global(.avatar-compact) .avatar-video,
+:global(.avatar-compact) .avatar-uploaded-img {
+  display: block;
+  min-height: 100%;
+}
+
+:global(.avatar-compact) .avatar-svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 @media (max-width: 760px) {

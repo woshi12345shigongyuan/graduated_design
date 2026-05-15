@@ -5,8 +5,9 @@ RAG 服务封装 - 将 RecipeRAGSystem 封装为可复用的服务
 import os
 import sys
 import logging
+import threading
 from pathlib import Path
-from typing import Optional, Dict, Any, Generator
+from typing import Optional, Dict, Any
 
 # 添加父目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -44,6 +45,7 @@ class RAGService:
         self.retrieval_module = None
         self.generation_module = None
         self._ready = False
+        self._lifecycle_lock = threading.RLock()
         
         # 设置 Hugging Face 镜像
         os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
@@ -63,53 +65,57 @@ class RAGService:
         Returns:
             初始化状态信息
         """
-        if self._ready:
-            return {"status": "already_initialized", "message": "RAG 系统已经初始化"}
-        
-        try:
-            logger.info("正在初始化 RAG 系统...")
-            
-            # 检查数据路径
-            if not Path(self.config.data_path).exists():
-                raise FileNotFoundError(f"数据路径不存在: {self.config.data_path}")
-            
-            # 1. 初始化数据准备模块
-            logger.info("初始化数据准备模块...")
-            self.data_module = DataPreparationModule(self.config.data_path)
-            
-            # 2. 初始化索引构建模块
-            logger.info("初始化索引构建模块...")
-            self.index_module = IndexConstructionModule(
-                model_name=self.config.embedding_model,
-                index_save_path=self.config.index_save_path
-            )
-            
-            # 3. 初始化生成集成模块
-            logger.info("初始化生成集成模块...")
-            self.generation_module = GenerationIntegrationModule(
-                model_name=self.config.llm_model,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-                use_local_model=self.config.use_local_model,
-                local_model_path=self.config.local_model_path,
-                model_device=self.config.model_device
-            )
-            
-            # 4. 构建知识库
-            self._build_knowledge_base()
-            
-            self._ready = True
-            logger.info("RAG 系统初始化完成")
-            
-            return {
-                "status": "success",
-                "message": "RAG 系统初始化成功",
-                "statistics": self.data_module.get_statistics()
-            }
-            
-        except Exception as e:
-            logger.error(f"RAG 系统初始化失败: {e}")
-            return {"status": "error", "message": str(e)}
+        with self._lifecycle_lock:
+            if self._ready:
+                return {"status": "already_initialized", "message": "RAG 系统已经初始化"}
+
+            try:
+                return self._initialize_unlocked()
+            except Exception as e:
+                logger.error(f"RAG 系统初始化失败: {e}")
+                return {"status": "error", "message": str(e)}
+
+    def _initialize_unlocked(self) -> Dict[str, Any]:
+        """执行初始化流程；调用方必须持有生命周期锁。"""
+        logger.info("正在初始化 RAG 系统...")
+
+        # 检查数据路径
+        if not Path(self.config.data_path).exists():
+            raise FileNotFoundError(f"数据路径不存在: {self.config.data_path}")
+
+        # 1. 初始化数据准备模块
+        logger.info("初始化数据准备模块...")
+        self.data_module = DataPreparationModule(self.config.data_path)
+
+        # 2. 初始化索引构建模块
+        logger.info("初始化索引构建模块...")
+        self.index_module = IndexConstructionModule(
+            model_name=self.config.embedding_model,
+            index_save_path=self.config.index_save_path
+        )
+
+        # 3. 初始化生成集成模块
+        logger.info("初始化生成集成模块...")
+        self.generation_module = GenerationIntegrationModule(
+            model_name=self.config.llm_model,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            use_local_model=self.config.use_local_model,
+            local_model_path=self.config.local_model_path,
+            model_device=self.config.model_device
+        )
+
+        # 4. 构建知识库
+        self._build_knowledge_base()
+
+        self._ready = True
+        logger.info("RAG 系统初始化完成")
+
+        return {
+            "status": "success",
+            "message": "RAG 系统初始化成功",
+            "statistics": self.data_module.get_statistics()
+        }
     
     def _build_knowledge_base(self, force_rebuild: bool = False):
         """构建知识库"""
@@ -146,17 +152,18 @@ class RAGService:
                 "message": "RAG 系统尚未初始化，文档将在初始化后生效"
             }
 
-        try:
-            self._build_knowledge_base(force_rebuild=True)
-            self._ready = True
-            return {
-                "status": "success",
-                "message": "知识库已根据最新文档更新",
-                "statistics": self.data_module.get_statistics()
-            }
-        except Exception as e:
-            logger.error(f"知识库重建失败: {e}")
-            return {"status": "error", "message": str(e)}
+        with self._lifecycle_lock:
+            try:
+                self._build_knowledge_base(force_rebuild=True)
+                self._ready = True
+                return {
+                    "status": "success",
+                    "message": "知识库已根据最新文档更新",
+                    "statistics": self.data_module.get_statistics()
+                }
+            except Exception as e:
+                logger.error(f"知识库重建失败: {e}")
+                return {"status": "error", "message": str(e)}
     
     def ask_question(self, question: str, stream: bool = False):
         """

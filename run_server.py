@@ -27,7 +27,7 @@ if __name__ == "__main__":
     import uvicorn
     
     print("=" * 60)
-    print("🍽️  尝尝咸淡 API 服务器")
+    print("🍽️  智能食谱 API 服务器")
     print("=" * 60)
     print()
     print("启动后端服务...")

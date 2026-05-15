@@ -3,17 +3,18 @@
 """
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..services.rag_service import rag_service
 from ..services.tts_service import tts_service
 from ..services.omnihuman_service import omnihuman_service
-from .digital_human import get_current_avatar_base64
+from .digital_human import get_current_avatar_path
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/chat", tags=["聊天"])
 
 class ChatRequest(BaseModel):
     """聊天请求模型"""
-    message: str
+    message: str = Field(..., min_length=1, max_length=2000)
     session_id: Optional[str] = None
     enable_tts: bool = True
     voice: Optional[str] = None
@@ -44,6 +45,76 @@ class InitResponse(BaseModel):
     status: str
     message: str
     statistics: Optional[dict] = None
+
+
+def _ensure_rag_ready() -> None:
+    """确保 RAG 已初始化。"""
+    if not rag_service.is_ready:
+        raise HTTPException(
+            status_code=503,
+            detail="RAG 系统未初始化，请先调用 /api/chat/init"
+        )
+
+
+def _truncate_for_video(text: str) -> str:
+    """限制数字人口播长度，控制外部服务调用成本。"""
+    if len(text) <= MAX_TTS_CHARS_FOR_VIDEO:
+        return text
+
+    truncated = text[:MAX_TTS_CHARS_FOR_VIDEO].rstrip()
+    if truncated and not truncated.endswith(("。", "！", "？")):
+        truncated += "。"
+    return truncated
+
+
+async def _synthesize_audio_url(text: str, voice: Optional[str]) -> Optional[str]:
+    """合成语音并返回可访问 URL；失败时仅记录日志。"""
+    try:
+        audio_path = await tts_service.synthesize(text=text, voice=voice)
+        return f"/api/tts/audio/{Path(audio_path).name}"
+    except Exception as e:
+        logger.warning(f"TTS 合成失败，但不影响文本回复: {e}")
+        return None
+
+
+async def _create_video_url(audio_url: str) -> Optional[str]:
+    """调用数字人服务生成视频；失败时保留音频回复。"""
+    try:
+        logger.info("正在调用即梦数字人 API 生成视频（使用上传基础图 + 语音 URL）...")
+        video_url = await run_in_threadpool(
+            omnihuman_service.create_digital_human_video,
+            "/api/digital_human/avatar/image",
+            audio_url,
+        )
+        if video_url:
+            logger.info("数字人视频生成成功: %s", video_url)
+        else:
+            logger.warning("数字人 API 返回无视频，将仅播放音频")
+        return video_url
+    except Exception as e:
+        logger.warning("数字人视频生成失败，将仅播放音频: %s", e)
+        return None
+
+
+async def _build_reply_media(answer: str, request: ChatRequest) -> tuple[Optional[str], Optional[str]]:
+    """根据请求和数字人配置生成回复音频/视频。"""
+    if not request.enable_tts or not answer:
+        return None, None
+
+    has_avatar = get_current_avatar_path() is not None
+    can_create_video = has_avatar and omnihuman_service.is_available
+
+    if not has_avatar:
+        logger.info("数字人未调用: 未上传基础图或基础图已删除")
+    elif not omnihuman_service.is_available:
+        logger.warning("数字人未调用: 未配置火山引擎 AK/SK，请在 .env 中设置 VOLC_ACCESS_KEY_ID 与 VOLC_SECRET_ACCESS_KEY")
+
+    text_for_tts = _truncate_for_video(answer) if can_create_video else answer
+    audio_url = await _synthesize_audio_url(text_for_tts, request.voice)
+    if not audio_url or not can_create_video:
+        return audio_url, None
+
+    return audio_url, await _create_video_url(audio_url)
 
 
 @router.get("/status")
@@ -81,62 +152,12 @@ async def send_message(request: ChatRequest):
     Returns:
         ChatResponse: 包含回答文本和可选的音频URL
     """
-    if not rag_service.is_ready:
-        raise HTTPException(
-            status_code=503, 
-            detail="RAG 系统未初始化，请先调用 /api/chat/init"
-        )
+    _ensure_rag_ready()
     
     try:
         # 获取 RAG 系统回答
         answer = await run_in_threadpool(rag_service.ask_question, request.message, False)
-        
-        audio_url = None
-        video_url = None
-        has_avatar = get_current_avatar_base64() is not None
-
-        # 便于排查：未调用数字人时在日志中写明原因
-        if request.enable_tts and answer and not has_avatar:
-            logger.info("数字人未调用: 未上传基础图或基础图已删除")
-        if request.enable_tts and answer and has_avatar and not omnihuman_service.is_available:
-            logger.warning("数字人未调用: 未配置火山引擎 AK/SK，请在 .env 中设置 VOLC_ACCESS_KEY_ID 与 VOLC_SECRET_ACCESS_KEY")
-
-        if request.enable_tts and answer:
-            # 若启用数字人且存在基础图：TTS 仅合成约 15 秒以节省成本，并尝试生成数字人视频
-            text_for_tts = answer
-            if has_avatar and omnihuman_service.is_available and len(answer) > MAX_TTS_CHARS_FOR_VIDEO:
-                text_for_tts = answer[:MAX_TTS_CHARS_FOR_VIDEO].rstrip()
-                if text_for_tts and not text_for_tts.endswith(("。", "！", "？")):
-                    text_for_tts += "。"
-            try:
-                audio_path = await tts_service.synthesize(
-                    text=text_for_tts,
-                    voice=request.voice
-                )
-                from pathlib import Path
-                audio_filename = Path(audio_path).name
-                audio_url = f"/api/tts/audio/{audio_filename}"
-            except Exception as e:
-                logger.warning(f"TTS 合成失败，但不影响文本回复: {e}")
-
-            # 有基础图且未删除时，调用即梦数字人生成视频
-            if has_avatar and audio_url and omnihuman_service.is_available:
-                try:
-                    logger.info("正在调用即梦数字人 API 生成视频（使用上传基础图 + 语音 URL）...")
-                    # 上传基础图在后端暴露为 /api/digital_human/avatar/image
-                    image_url = "/api/digital_human/avatar/image"
-                    # audio_url 形如 /api/tts/audio/xxx.mp3
-                    video_url = await run_in_threadpool(
-                        omnihuman_service.create_digital_human_video,
-                        image_url,
-                        audio_url,
-                    )
-                    if video_url:
-                        logger.info("数字人视频生成成功: %s", video_url)
-                    else:
-                        logger.warning("数字人 API 返回无视频，将仅播放音频")
-                except Exception as e:
-                    logger.warning("数字人视频生成失败，将仅播放音频: %s", e)
+        audio_url, video_url = await _build_reply_media(answer, request)
         
         return ChatResponse(
             answer=answer,
@@ -161,11 +182,7 @@ async def stream_message(request: ChatRequest):
     Returns:
         StreamingResponse: 流式文本响应
     """
-    if not rag_service.is_ready:
-        raise HTTPException(
-            status_code=503, 
-            detail="RAG 系统未初始化，请先调用 /api/chat/init"
-        )
+    _ensure_rag_ready()
     
     async def generate():
         # 关键：RAG 的 stream 生成器是同步阻塞的；若直接在 async 里迭代会卡住事件循环，

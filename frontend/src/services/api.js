@@ -4,6 +4,8 @@
 
 import axios from 'axios'
 
+const DEFAULT_CHAT_TIMEOUT = 700000
+
 // 创建 axios 实例
 const api = axios.create({
   baseURL: '/api',
@@ -17,10 +19,19 @@ const api = axios.create({
 api.interceptors.response.use(
   response => response.data,
   error => {
-    console.error('API 错误:', error)
-    throw error
+    const message = error.response?.data?.detail || error.message || '请求失败'
+    console.error('API 错误:', message, error)
+    throw new Error(message)
   }
 )
+
+function parseSseDataBlock(block) {
+  return block
+    .split('\n')
+    .filter(line => line.startsWith('data:'))
+    .map(line => line.slice(5).trimStart())
+    .join('\n')
+}
 
 /**
  * 聊天相关 API
@@ -47,7 +58,7 @@ export const chatApi = {
    */
   async sendMessage(message, options = {}) {
     // 数字人视频生成 + 下载可能较耗时，这里为聊天发送单独设置更长超时时间
-    const timeout = options.timeout ?? 700000 // 
+    const timeout = options.timeout ?? DEFAULT_CHAT_TIMEOUT
     return api.post(
       '/chat/send',
       {
@@ -74,31 +85,50 @@ export const chatApi = {
       body: JSON.stringify({ message, enable_tts: false })
     })
 
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(errorText || `请求失败：${response.status}`)
+    }
+
+    if (!response.body) {
+      throw new Error('当前浏览器不支持流式响应')
+    }
+
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
 
     let fullText = ''
+    let buffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
 
-      const chunk = decoder.decode(value)
-      const lines = chunk.split('\n')
+      buffer += decoder.decode(value, { stream: true })
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() || ''
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6)
-          if (data === '[DONE]') {
-            return fullText
-          }
-          if (data.startsWith('[ERROR]')) {
-            throw new Error(data.slice(8))
-          }
-          fullText += data
-          onChunk(data)
+      for (const block of blocks) {
+        const data = parseSseDataBlock(block)
+        if (!data) continue
+        if (data === '[DONE]') {
+          return fullText
         }
+        if (data.startsWith('[ERROR]')) {
+          throw new Error(data.slice(8))
+        }
+        fullText += data
+        onChunk(data)
       }
+    }
+
+    const rest = parseSseDataBlock(buffer)
+    if (rest && rest !== '[DONE]') {
+      if (rest.startsWith('[ERROR]')) {
+        throw new Error(rest.slice(8))
+      }
+      fullText += rest
+      onChunk(rest)
     }
 
     return fullText

@@ -6,6 +6,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 const STORAGE_KEY = 'changchangxiandan_chat_history'
+const DEFAULT_VOICE_SETTINGS = {
+  enabled: true,
+  voice: 'xiaoxiao',
+  autoPlay: true
+}
 
 export const useChatStore = defineStore('chat', () => {
   // 消息列表
@@ -21,11 +26,7 @@ export const useChatStore = defineStore('chat', () => {
   const currentInput = ref('')
   
   // 语音设置
-  const voiceSettings = ref({
-    enabled: true,
-    voice: 'xiaoxiao',
-    autoPlay: true
-  })
+  const voiceSettings = ref({ ...DEFAULT_VOICE_SETTINGS })
 
   // 计算属性：是否有消息
   const hasMessages = computed(() => messages.value.length > 0)
@@ -40,45 +41,31 @@ export const useChatStore = defineStore('chat', () => {
    * 添加用户消息
    */
   function addUserMessage(content) {
-    const message = {
-      id: generateMessageId(),
-      role: 'user',
-      content,
-      timestamp: Date.now()
-    }
-    messages.value.push(message)
-    saveToStorage()
-    return message
+    return addMessage({ role: 'user', content })
   }
 
   /**
    * 添加助手消息
    */
   function addAssistantMessage(content, audioUrl = null) {
-    const message = {
-      id: generateMessageId(),
-      role: 'assistant',
-      content,
-      audioUrl,
-      timestamp: Date.now()
-    }
-    messages.value.push(message)
-    saveToStorage()
-    return message
+    return addMessage({ role: 'assistant', content, audioUrl })
   }
 
   /**
    * 添加正在输入的助手消息
    */
   function addTypingMessage() {
+    return addMessage({ role: 'assistant', content: '', isTyping: true }, false)
+  }
+
+  function addMessage(payload, shouldSave = true) {
     const message = {
       id: generateMessageId(),
-      role: 'assistant',
-      content: '',
-      isTyping: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ...payload
     }
     messages.value.push(message)
+    if (shouldSave) saveToStorage()
     return message
   }
 
@@ -165,7 +152,7 @@ export const useChatStore = defineStore('chat', () => {
         messages.value = parsed.messages || []
         sessionId.value = parsed.sessionId || generateSessionId()
         if (parsed.voiceSettings) {
-          voiceSettings.value = { ...voiceSettings.value, ...parsed.voiceSettings }
+          voiceSettings.value = { ...DEFAULT_VOICE_SETTINGS, ...parsed.voiceSettings }
         }
         return true
       }

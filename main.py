@@ -311,7 +311,7 @@ class RecipeRAGSystem:
     def run_interactive(self):
         """运行交互式问答"""
         print("=" * 60)
-        print("🍽️  尝尝咸淡RAG系统 - 交互式问答  🍽️")
+        print("🍽️  智能食谱RAG系统 - 交互式问答  🍽️")
         print("=" * 60)
         print("💡 解决您的选择困难症，告别'今天吃什么'的世纪难题！")
         
@@ -349,7 +349,7 @@ class RecipeRAGSystem:
             except Exception as e:
                 print(f"处理问题时出错: {e}")
         
-        print("\n感谢使用尝尝咸淡RAG系统！")
+        print("\n感谢使用智能食谱RAG系统！")
 
 
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="chat-panel">
     <header class="chat-header">
       <div class="header-main">
@@ -111,6 +111,7 @@ async function handleSend(rawMessage) {
     chatStore.updateMessage(typingMessage.id, {
       content: answerText,
       audioUrl: response.audio_url,
+      videoUrl: response.video_url,
       isTyping: false,
       isError: false
     })
@@ -143,7 +144,7 @@ async function handleSend(rawMessage) {
     console.error('发送消息失败:', error)
 
     chatStore.updateMessage(typingMessage.id, {
-      content: '抱歉，当前请求失败。请检查后端服务状态后重试。',
+      content: `抱歉，当前请求失败：${error.message || '请检查后端服务状态后重试。'}`,
       isTyping: false,
       isError: true
     })
@@ -185,148 +186,141 @@ function setEmotionFromAnswer(answer) {
 .chat-panel {
   height: 100%;
   min-height: 0;
-  border-radius: 18px;
-  border: 1px solid rgba(138, 169, 204, 0.24);
-  background: linear-gradient(160deg, rgba(10, 17, 30, 0.82), rgba(8, 14, 24, 0.66));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--chat-bg);
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(112, 156, 211, 0.08);
 }
 
 .chat-header {
+  min-height: 54px;
+  padding: 10px clamp(18px, 3vw, 34px);
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 16px 18px 12px;
-  border-bottom: 1px solid rgba(116, 149, 185, 0.24);
-  background: linear-gradient(180deg, rgba(16, 28, 46, 0.75), rgba(12, 20, 34, 0.45));
-}
-
-.header-main {
-  min-width: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .header-kicker {
-  margin: 0;
-  color: var(--text-faint);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+  display: none;
 }
 
 .header-main h3 {
-  margin: 8px 0 6px;
-  font-size: clamp(1.02rem, 1.4vw, 1.24rem);
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.98rem;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .header-meta {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.82rem;
+  margin: 3px 0 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  color: var(--text-faint);
+  font-size: 0.78rem;
 }
 
 .header-meta i {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: rgba(154, 182, 214, 0.6);
+  background: var(--line-strong);
 }
 
 .header-actions {
   display: flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  align-items: flex-start;
-  gap: 8px;
 }
 
 .header-btn {
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 11px;
   border-radius: 999px;
-  border: 1px solid rgba(131, 165, 207, 0.34);
-  background: rgba(11, 20, 34, 0.7);
+  border: 1px solid var(--line-soft);
   color: var(--text-muted);
+  background: var(--bg-elevated);
   font-size: 0.8rem;
-  transition: border-color 0.22s ease, color 0.22s ease, transform 0.22s ease;
-}
-
-.header-btn.active {
-  border-color: rgba(124, 183, 248, 0.7);
-  color: #d9ecff;
 }
 
 .header-btn:hover {
-  transform: translateY(-1px);
-  color: var(--text-main);
+  background: var(--item-hover);
+}
+
+.header-btn.active {
+  color: #0f7a62;
+  border-color: rgba(16, 163, 127, 0.24);
+  background: rgba(16, 163, 127, 0.08);
 }
 
 .clear-btn {
-  border-color: rgba(243, 130, 157, 0.5);
-  color: #ffc4d3;
-}
-
-.clear-btn:hover {
-  border-color: rgba(244, 129, 160, 0.8);
-  color: #ffe2e8;
+  color: var(--danger);
 }
 
 .confirm-overlay {
   position: fixed;
   inset: 0;
-  z-index: 30;
-  background: rgba(4, 8, 15, 0.7);
+  z-index: 40;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .confirm-dialog {
-  width: min(380px, 100%);
-  padding: 20px;
-  border-radius: 16px;
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 18px;
+  background: var(--bg-panel-strong);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-soft);
 }
 
 .dialog-title {
-  margin: 0;
-  font-size: 1.05rem;
+  margin: 0 0 8px;
+  font-weight: 700;
 }
 
 .dialog-desc {
-  margin: 8px 0 16px;
+  margin: 0;
   color: var(--text-muted);
-  font-size: 0.86rem;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .dialog-actions {
+  margin-top: 18px;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
 }
 
 .dialog-btn {
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(136, 170, 209, 0.35);
-  background: rgba(11, 19, 33, 0.72);
-  color: var(--text-main);
+  min-height: 36px;
   padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-elevated);
+}
+
+.dialog-btn:hover {
+  background: var(--item-hover);
 }
 
 .dialog-btn.danger {
-  background: rgba(243, 99, 128, 0.14);
-  border-color: rgba(243, 126, 152, 0.48);
-  color: #ffc6d4;
+  color: #fff;
+  border-color: var(--danger);
+  background: var(--danger);
 }
 
 .dialog-fade-enter-active,
 .dialog-fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.18s ease;
 }
 
 .dialog-fade-enter-from,
@@ -334,12 +328,14 @@ function setEmotionFromAnswer(answer) {
   opacity: 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 640px) {
   .chat-header {
+    align-items: flex-start;
     flex-direction: column;
   }
 
   .header-actions {
+    width: 100%;
     justify-content: flex-start;
   }
 }

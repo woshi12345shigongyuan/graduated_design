@@ -1,53 +1,40 @@
 <template>
   <div class="app-shell">
-    <div class="ambient-layer" aria-hidden="true">
-      <span
-        v-for="particle in particles"
-        :key="particle.id"
-        class="particle"
-        :style="particle.style"
-      ></span>
-    </div>
-
-    <header class="hero glass-panel">
-      <div class="hero-main">
-        <p class="hero-kicker">NEURAL CULINARY INTERFACE</p>
-        <h1>尝尝咸淡 · 智能烹饪中枢</h1>
-        <p class="hero-subtitle">
-          极简未来主义对话界面，融合 RAG 检索、语音播报与数字人视频回放，
-          以低干扰的信息层级提供高效问答体验。
-        </p>
+    <aside class="sidebar">
+      <div class="brand-card">
+        <div class="brand-icon">食</div>
+        <div>
+          <p class="brand-kicker">Recipe GPT</p>
+          <h1>智能食谱助手</h1>
+        </div>
       </div>
 
-      <div class="hero-metrics">
-        <article class="metric-card">
-          <span class="metric-label">系统状态</span>
-          <strong>{{ systemStateText }}</strong>
-          <span class="metric-indicator" :class="{ ready: isReady }">
-            <i class="pulse-dot"></i>
-          </span>
-        </article>
+      <button type="button" class="new-chat-btn" title="清空当前聊天并开始新对话" @click="startNewChat">
+        <span class="btn-icon">＋</span>
+        <span>新对话</span>
+      </button>
 
-        <article class="metric-card">
-          <span class="metric-label">数字人引擎</span>
-          <strong>{{ hasAvatar ? '已加载真人基底' : '默认全息形象' }}</strong>
-        </article>
-      </div>
-    </header>
 
-    <main class="workspace">
-      <section class="avatar-panel glass-panel">
-        <header class="panel-header">
-          <div>
-            <p class="panel-kicker">Avatar Node</p>
-            <h2>数字人交互舱</h2>
-          </div>
-          <span class="state-chip" :class="{ active: hasAvatar }">
-            {{ hasAvatar ? '已绑定头像' : '未绑定头像' }}
-          </span>
-        </header>
 
-        <div class="avatar-view">
+      <section class="sidebar-section status-card">
+        <p class="sidebar-title">状态</p>
+        <div class="status-row">
+          <span>RAG</span>
+          <strong :class="{ online: isReady }">{{ systemStateText }}</strong>
+        </div>
+        <div class="status-row">
+          <span>数字人</span>
+          <strong :class="{ online: hasAvatar }">{{ hasAvatar ? '已绑定' : '默认形象' }}</strong>
+        </div>
+      </section>
+
+      <section class="sidebar-section avatar-card">
+        <div class="sidebar-title-row">
+          <p class="sidebar-title">数字人</p>
+          <span class="mini-chip" :class="{ active: hasAvatar }">{{ hasAvatar ? 'ON' : 'OFF' }}</span>
+        </div>
+
+        <div class="avatar-compact">
           <Avatar
             :status="avatarStatus"
             :is-speaking="isSpeaking"
@@ -58,84 +45,98 @@
           />
         </div>
 
-        <div class="avatar-actions">
-          <label class="action-btn upload-btn neon-btn">
+        <div class="compact-actions">
+          <label class="sidebar-btn primary upload-avatar-btn" :class="{ disabled: isAvatarUploading }">
             <input type="file" accept="image/*" @change="onAvatarFileChange" hidden>
-            {{ hasAvatar ? '更换数字人图片' : '上传数字人图片' }}
+            <span class="btn-icon">🖼️</span>
+            <span>{{ isAvatarUploading ? '上传中...' : (hasAvatar ? '更换数字人图片' : '上传数字人图片') }}</span>
           </label>
-          <button v-if="hasAvatar" type="button" class="action-btn danger-btn" @click="deleteAvatar">
-            移除图片
+          <button v-if="hasAvatar" type="button" class="sidebar-btn ghost danger" @click="deleteAvatar">
+            移除
           </button>
         </div>
-
-        <p class="panel-note">提示：上传正面清晰头像后，系统可生成语音驱动视频回答。</p>
-
-        <div class="knowledge-manager">
-          <div class="knowledge-header">
-            <p class="panel-kicker">Knowledge Dock</p>
-            <h3>RAG 文档管理</h3>
-          </div>
-
-          <label class="action-btn upload-btn neon-btn" :class="{ disabled: isDocumentUploading }">
-            <input
-              type="file"
-              accept=".md,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              :disabled="isDocumentUploading"
-              @change="onKnowledgeFileChange"
-              hidden
-            >
-            {{ isDocumentUploading ? '上传中...' : '上传文档（.md/.txt/.pdf/.docx）' }}
-          </label>
-
-          <p class="panel-note">提示：支持 md/txt/pdf/docx，上传/删除后会自动刷新 RAG 知识库。</p>
-          <p v-if="documentNotice" class="doc-notice" :class="{ error: isDocumentNoticeError }">
-            {{ documentNotice }}
-          </p>
-
-          <div class="doc-list-wrapper">
-            <p v-if="isDocumentsLoading" class="doc-placeholder">正在加载文档列表...</p>
-            <p v-else-if="uploadedDocuments.length === 0" class="doc-placeholder">暂无已上传文档</p>
-            <ul v-else class="doc-list">
-              <li v-for="doc in uploadedDocuments" :key="doc.filename" class="doc-item">
-                <div class="doc-meta">
-                  <p class="doc-name">{{ doc.filename }}</p>
-                  <p class="doc-time">{{ formatDocumentTime(doc.updated_at) }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="doc-delete-btn"
-                  :disabled="isDocumentUploading || deletingDocumentName === doc.filename"
-                  @click="deleteKnowledgeDocument(doc.filename)"
-                >
-                  {{ deletingDocumentName === doc.filename ? '删除中...' : '删除' }}
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
       </section>
 
-      <section class="chat-panel-wrapper glass-panel">
+      <section class="sidebar-section docs-card">
+        <div class="sidebar-title-row">
+          <p class="sidebar-title">知识库</p>
+          <span class="mini-chip">{{ uploadedDocuments.length }}</span>
+        </div>
+
+        <label class="sidebar-btn primary" :class="{ disabled: isDocumentUploading }">
+          <input
+            type="file"
+            accept=".md,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            :disabled="isDocumentUploading"
+            @change="onKnowledgeFileChange"
+            hidden
+          >
+          {{ isDocumentUploading ? '上传中...' : '上传文档' }}
+        </label>
+
+        <p v-if="documentNotice" class="doc-notice" :class="{ error: isDocumentNoticeError }">
+          {{ documentNotice }}
+        </p>
+
+        <div class="doc-list-wrapper">
+          <p v-if="isDocumentsLoading" class="doc-placeholder">正在加载...</p>
+          <p v-else-if="uploadedDocuments.length === 0" class="doc-placeholder">暂无文档</p>
+          <ul v-else class="doc-list">
+            <li v-for="doc in uploadedDocuments" :key="doc.filename" class="doc-item">
+              <button type="button" class="doc-name-btn" :title="doc.filename">
+                {{ doc.filename }}
+              </button>
+              <button
+                type="button"
+                class="doc-delete-btn"
+                :disabled="isDocumentUploading || deletingDocumentName === doc.filename"
+                @click="deleteKnowledgeDocument(doc.filename)"
+              >
+                {{ deletingDocumentName === doc.filename ? '...' : '×' }}
+              </button>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </aside>
+
+    <main class="chat-main">
+      <header class="topbar">
+        <div>
+          <p class="topbar-kicker">GPT-style culinary assistant</p>
+          <h2>今天想吃点什么？</h2>
+        </div>
+        <div class="topbar-actions">
+          <span class="topbar-chip" :class="{ ready: isReady }">
+            <i class="pulse-dot"></i>
+            {{ systemStateText }}
+          </span>
+          <span class="topbar-chip">RAG + TTS</span>
+        </div>
+      </header>
+
+      <section class="chat-panel-wrapper">
         <ChatPanel />
       </section>
-    </main>
 
-    <transition name="fade-up">
-      <div v-if="!isReady" class="loading-overlay">
-        <div class="loading-card glass-panel">
-          <p class="loading-kicker">SYSTEM BOOTSTRAP</p>
-          <h3>智能检索系统尚未就绪</h3>
-          <p class="loading-message">{{ loadingMessage }}</p>
+      <transition name="fade-up">
+        <div v-if="!isReady" class="loading-overlay">
+          <div class="loading-card">
+            <div class="loading-logo">咸</div>
+            <p class="loading-kicker">系统启动</p>
+            <h3>智能检索系统尚未就绪</h3>
+            <p class="loading-message">{{ loadingMessage }}</p>
 
-          <div v-if="isInitializing" class="loading-progress">
-            <span class="loader-ring"></span>
-            <span>正在构建知识索引...</span>
+            <div v-if="isInitializing" class="loading-progress">
+              <span class="loader-ring"></span>
+              <span>正在构建知识索引...</span>
+            </div>
+
+            <button v-else class="boot-btn" @click="initSystem">启动系统</button>
           </div>
-
-          <button v-else class="boot-btn" @click="initSystem">启动系统</button>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </main>
   </div>
 </template>
 
@@ -144,6 +145,9 @@ import { ref, computed, onMounted, provide } from 'vue'
 import ChatPanel from './components/ChatPanel.vue'
 import Avatar from './components/Avatar.vue'
 import { chatApi, digitalHumanApi, knowledgeApi } from './services/api'
+import { useChatStore } from './stores/chat'
+
+const chatStore = useChatStore()
 
 const isReady = ref(false)
 const isInitializing = ref(false)
@@ -155,6 +159,7 @@ const currentEmotion = ref('neutral')
 
 const hasAvatar = ref(false)
 const avatarImageUrl = ref('')
+const isAvatarUploading = ref(false)
 const videoUrlToPlay = ref(null)
 const uploadedDocuments = ref([])
 const isDocumentsLoading = ref(false)
@@ -169,27 +174,18 @@ const systemStateText = computed(() => {
   return '待启动'
 })
 
-const particles = Array.from({ length: 20 }, (_, id) => ({
-  id,
-  style: createParticleStyle(id)
-}))
-
 provide('avatarStatus', avatarStatus)
 provide('isSpeaking', isSpeaking)
 provide('currentEmotion', currentEmotion)
 provide('videoUrlToPlay', videoUrlToPlay)
 provide('onPlaybackEnded', onPlaybackEnded)
 
-function createParticleStyle(index) {
-  const duration = 10 + (index % 5) * 2 + Math.random() * 1.8
-  return {
-    '--x': `${Math.round(Math.random() * 100)}%`,
-    '--delay': `-${Math.random() * duration}s`,
-    '--duration': `${duration}s`,
-    '--size': `${Math.floor(Math.random() * 3) + 2}px`,
-    '--travel': `${Math.round(Math.random() * 30) - 15}px`,
-    '--opacity': (0.25 + Math.random() * 0.55).toFixed(2)
-  }
+function startNewChat() {
+  chatStore.clearMessages()
+  isSpeaking.value = false
+  avatarStatus.value = 'idle'
+  currentEmotion.value = 'neutral'
+  videoUrlToPlay.value = null
 }
 
 function withCacheBuster(url) {
@@ -200,19 +196,6 @@ function withCacheBuster(url) {
 function setDocumentNotice(message, isError = false) {
   documentNotice.value = message
   isDocumentNoticeError.value = isError
-}
-
-function formatDocumentTime(isoTime) {
-  if (!isoTime) return ''
-  const date = new Date(isoTime)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString('zh-CN', {
-    hour12: false,
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
 }
 
 async function fetchAvatarStatus() {
@@ -245,6 +228,7 @@ function onAvatarFileChange(event) {
   const file = event.target?.files?.[0]
   if (!file || !file.type.startsWith('image/')) return
 
+  isAvatarUploading.value = true
   digitalHumanApi
     .uploadAvatar(file)
     .then(() => fetchAvatarStatus())
@@ -252,6 +236,7 @@ function onAvatarFileChange(event) {
       console.error('上传数字人基础图失败:', error)
     })
     .finally(() => {
+      isAvatarUploading.value = false
       event.target.value = ''
     })
 }
@@ -373,437 +358,399 @@ onMounted(() => {
 
 <style scoped>
 .app-shell {
-  position: relative;
-  z-index: 0;
   min-height: 100dvh;
-  padding: clamp(16px, 2.2vw, 32px);
-  display: flex;
-  flex-direction: column;
-  gap: clamp(16px, 2vw, 24px);
-}
-
-.ambient-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-  overflow: hidden;
-}
-
-.particle {
-  position: absolute;
-  left: var(--x);
-  bottom: -20px;
-  width: var(--size);
-  height: var(--size);
-  border-radius: 50%;
-  opacity: var(--opacity);
-  background: radial-gradient(circle at 30% 30%, rgba(154, 217, 255, 0.95), rgba(84, 161, 231, 0.4) 45%, transparent 70%);
-  box-shadow: 0 0 12px rgba(119, 190, 255, 0.65);
-  animation: floatUp var(--duration) linear infinite;
-  animation-delay: var(--delay);
-}
-
-@keyframes floatUp {
-  0% {
-    transform: translate3d(0, 0, 0) scale(0.9);
-  }
-  100% {
-    transform: translate3d(var(--travel), -105vh, 0) scale(1.15);
-  }
-}
-
-.hero {
-  padding: clamp(20px, 2.5vw, 32px);
-  border-radius: var(--radius-lg);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
-  gap: clamp(16px, 2vw, 28px);
-  overflow: hidden;
-  position: relative;
-}
-
-.hero::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(120deg, rgba(130, 185, 251, 0.08), transparent 45%, rgba(140, 129, 255, 0.1));
-}
-
-.hero-main {
-  position: relative;
-  z-index: 1;
-}
-
-.hero-kicker {
-  margin: 0;
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
-  color: var(--text-faint);
-}
-
-.hero h1 {
-  margin: 10px 0 12px;
-  font-size: clamp(1.45rem, 2.2vw, 2.35rem);
-  line-height: 1.15;
-}
-
-.hero-subtitle {
-  margin: 0;
-  max-width: 64ch;
-  color: var(--text-muted);
-  font-size: clamp(0.94rem, 1.25vw, 1.08rem);
-}
-
-.hero-metrics {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 12px;
-}
-
-.metric-card {
-  background: rgba(8, 16, 27, 0.6);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  display: grid;
-  gap: 6px;
-}
-
-.metric-label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-faint);
-}
-
-.metric-card strong {
-  font-size: 1.08rem;
-  font-family: var(--font-display);
-  letter-spacing: 0.06em;
-}
-
-.metric-indicator {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  color: var(--danger);
-}
-
-.metric-indicator .pulse-dot,
-.metric-indicator .pulse-dot::after {
-  background: currentColor;
-}
-
-.metric-indicator.ready {
-  color: var(--accent-mint);
-}
-
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-  gap: clamp(16px, 1.8vw, 24px);
-  align-items: stretch;
-  perspective: 1200px;
-}
-
-.avatar-panel,
-.chat-panel-wrapper {
-  border-radius: var(--radius-lg);
-}
-
-.avatar-panel {
-  padding: clamp(14px, 1.5vw, 20px);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  transform: rotateX(1.6deg);
-  transform-origin: top;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.panel-kicker {
-  margin: 0;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  font-size: 0.74rem;
-  letter-spacing: 0.18em;
-}
-
-.panel-header h2 {
-  margin: 7px 0 0;
-  font-size: 1.3rem;
-}
-
-.state-chip {
-  border-radius: 999px;
-  padding: 5px 10px;
-  border: 1px solid rgba(181, 197, 218, 0.35);
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.state-chip.active {
-  border-color: rgba(117, 214, 191, 0.55);
-  color: #a9eedf;
-  box-shadow: 0 0 0 1px rgba(117, 214, 191, 0.18);
-}
-
-.avatar-view {
-  min-height: 0;
-}
-
-.avatar-actions {
-  display: grid;
-  gap: 10px;
-}
-
-.action-btn {
-  width: 100%;
-  border-radius: 12px;
-  min-height: 42px;
-  border: 1px solid transparent;
-  padding: 0 14px;
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.action-btn.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.upload-btn {
+  grid-template-columns: 380px minmax(0, 1fr);
+  background: var(--bg-base);
   color: var(--text-main);
 }
 
-.danger-btn {
-  background: rgba(246, 97, 127, 0.12);
-  border-color: rgba(246, 125, 151, 0.38);
-  color: #ffbfd0;
-  transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--line-soft);
+  overflow-y: auto;
 }
 
-.danger-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(250, 147, 171, 0.65);
-  background: rgba(246, 97, 127, 0.18);
+.brand-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px 14px;
 }
 
-.panel-note {
+.brand-icon,
+.loading-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  background: linear-gradient(135deg, #10a37f, #37b5ff);
+  box-shadow: 0 10px 24px rgba(16, 163, 127, 0.28);
+}
+
+.brand-kicker,
+.topbar-kicker,
+.loading-kicker,
+.sidebar-title {
   margin: 0;
   color: var(--text-faint);
-  font-size: 0.83rem;
-  line-height: 1.55;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
 }
 
-.knowledge-manager {
-  margin-top: 6px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(136, 164, 197, 0.25);
+.brand-card h1 {
+  margin: 2px 0 0;
+  font-size: 1.02rem;
+  letter-spacing: 0;
+}
+
+.new-chat-btn,
+.nav-item,
+.sidebar-btn {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-main);
+  background: transparent;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.new-chat-btn {
+  justify-content: flex-start;
+  padding: 0 12px;
+  font-weight: 650;
+  color: var(--text-main);
+  background: #ffffff;
+}
+
+.btn-icon {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+}
+
+.new-chat-btn:hover,
+.nav-item:hover,
+.sidebar-btn:hover:not(.disabled) {
+  background: var(--item-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.sidebar-section {
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+
+
+.status-card,
+.docs-card,
+.avatar-card {
   display: grid;
   gap: 10px;
 }
 
-.knowledge-header h3 {
-  margin: 7px 0 0;
-  font-size: 1.02rem;
+.status-row,
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status-row {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.status-row strong {
+  color: var(--text-faint);
+  font-size: 0.82rem;
+}
+
+.status-row strong.online,
+.mini-chip.active {
+  color: var(--accent-mint);
+}
+
+.mini-chip {
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.72rem;
+}
+
+.avatar-compact {
+  height: 400px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+}
+
+.compact-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.sidebar-btn {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.sidebar-btn.primary {
+  border-color: rgba(16, 163, 127, 0.38);
+  background: #10a37f;
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.upload-avatar-btn {
+  min-height: 40px;
+  overflow: hidden;
+}
+
+.upload-avatar-btn span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-btn.ghost {
+  width: auto;
+}
+
+.sidebar-btn.danger,
+.doc-delete-btn {
+  color: #ffb7c8;
+  border-color: rgba(248, 113, 146, 0.35);
+  background: rgba(248, 113, 146, 0.08);
+}
+
+.disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .doc-notice {
   margin: 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(115, 186, 236, 0.35);
-  background: rgba(16, 46, 74, 0.32);
-  color: #bfe6ff;
-  font-size: 0.8rem;
-  line-height: 1.5;
+  padding: 9px 10px;
+  border-radius: 12px;
+  color: #cfe9ff;
+  background: rgba(55, 181, 255, 0.1);
+  border: 1px solid rgba(55, 181, 255, 0.2);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .doc-notice.error {
-  border-color: rgba(243, 126, 152, 0.5);
-  background: rgba(77, 24, 41, 0.32);
-  color: #ffc4d2;
+  color: #ffd0dc;
+  background: rgba(248, 113, 146, 0.1);
+  border-color: rgba(248, 113, 146, 0.25);
 }
 
 .doc-list-wrapper {
-  border: 1px solid rgba(130, 162, 197, 0.28);
-  border-radius: 12px;
-  background: rgba(9, 16, 27, 0.58);
-  max-height: 190px;
+  max-height: 188px;
   overflow-y: auto;
 }
 
 .doc-placeholder {
   margin: 0;
-  padding: 12px;
   color: var(--text-faint);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .doc-list {
   margin: 0;
   padding: 0;
+  display: grid;
+  gap: 4px;
   list-style: none;
 }
 
 .doc-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.doc-name-btn,
+.doc-delete-btn {
+  min-height: 30px;
+  border: none;
+  border-radius: 9px;
+}
+
+.doc-name-btn {
+  min-width: 0;
+  padding: 0 9px;
+  color: var(--text-muted);
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: transparent;
+}
+
+.doc-name-btn:hover {
+  color: var(--text-main);
+  background: var(--item-hover);
+}
+
+
+
+.chat-main {
+  position: relative;
+  min-width: 0;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--chat-bg);
+}
+
+.topbar {
+  min-height: 64px;
+  padding: 12px clamp(18px, 3vw, 34px);
   display: flex;
-  gap: 10px;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(121, 151, 183, 0.2);
+  gap: 16px;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-.doc-item:last-child {
-  border-bottom: none;
-}
-
-.doc-meta {
-  min-width: 0;
-}
-
-.doc-name,
-.doc-time {
-  margin: 0;
-}
-
-.doc-name {
+.topbar h2 {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
   color: var(--text-main);
-  font-size: 0.82rem;
-  word-break: break-all;
 }
 
-.doc-time {
-  color: var(--text-faint);
-  font-size: 0.74rem;
-  margin-top: 3px;
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.doc-delete-btn {
-  flex-shrink: 0;
-  min-width: 58px;
+.topbar-chip {
   min-height: 30px;
+  padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(243, 126, 152, 0.48);
-  color: #ffcad8;
-  background: rgba(246, 97, 127, 0.12);
-  font-size: 0.75rem;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+  font-size: 0.8rem;
 }
 
-.doc-delete-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: rgba(248, 140, 165, 0.72);
+.topbar-chip.ready {
+  color: #0f7a62;
+  border-color: rgba(16, 163, 127, 0.24);
+  background: rgba(16, 163, 127, 0.08);
 }
 
-.doc-delete-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.topbar-chip .pulse-dot,
+.topbar-chip .pulse-dot::after {
+  background: currentColor;
 }
 
 .chat-panel-wrapper {
-  padding: clamp(10px, 1.3vw, 14px);
-  min-height: clamp(540px, 74vh, 900px);
-  transform: rotateX(0.7deg);
-  transform-origin: top;
+  min-height: 0;
 }
 
 .loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(3, 6, 12, 0.74);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 20;
+  position: absolute;
+  inset: 64px 0 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
   padding: 20px;
+  background: rgba(247, 247, 248, 0.82);
+  backdrop-filter: blur(12px);
 }
 
 .loading-card {
-  width: min(460px, 100%);
-  border-radius: 20px;
-  padding: 24px;
+  width: min(440px, 100%);
+  padding: 28px;
+  border-radius: 24px;
   text-align: center;
-  border: 1px solid var(--line-strong);
+  background: var(--bg-panel-strong);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-soft);
 }
 
-.loading-kicker {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 0.72rem;
-  color: var(--text-faint);
+.loading-logo {
+  margin: 0 auto 14px;
 }
 
 .loading-card h3 {
-  margin: 12px 0 10px;
-  font-size: 1.4rem;
+  margin: 8px 0 10px;
+  color: var(--text-main);
 }
 
 .loading-message {
   margin: 0 0 18px;
   color: var(--text-muted);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 .loading-progress {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #b9d8ff;
+  color: var(--text-muted);
 }
 
 .loader-ring {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 2px solid rgba(130, 184, 244, 0.28);
-  border-top-color: rgba(130, 184, 244, 0.95);
+  border: 2px solid rgba(16, 163, 127, 0.18);
+  border-top-color: #10a37f;
   animation: spin 0.85s linear infinite;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .boot-btn {
-  border: 1px solid rgba(147, 191, 240, 0.55);
-  border-radius: 999px;
   min-height: 42px;
-  min-width: 148px;
-  color: #dff1ff;
-  background: linear-gradient(120deg, rgba(73, 125, 190, 0.62), rgba(102, 78, 188, 0.52));
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.boot-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 26px rgba(61, 109, 173, 0.35);
+  min-width: 128px;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  background: #10a37f;
+  box-shadow: 0 10px 24px rgba(16, 163, 127, 0.24);
 }
 
 .fade-up-enter-active,
 .fade-up-leave-active {
-  transition: opacity 0.24s ease, transform 0.24s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .fade-up-enter-from,
@@ -812,39 +759,82 @@ onMounted(() => {
   transform: translateY(8px);
 }
 
-@media (max-width: 1080px) {
-  .hero {
-    grid-template-columns: 1fr;
-  }
-
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .avatar-panel,
-  .chat-panel-wrapper {
-    transform: none;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 960px) {
   .app-shell {
-    padding: 12px;
+    grid-template-columns: 1fr;
   }
 
-  .hero,
-  .avatar-panel,
-  .chat-panel-wrapper {
-    border-radius: 18px;
+  .sidebar {
+    position: relative;
+    height: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 
-  .panel-header {
-    flex-direction: column;
+  .brand-card,
+  .new-chat-btn,
+  .quick-nav {
+    grid-column: span 2;
+  }
+
+  .chat-main {
+    height: 78dvh;
+  }
+
+  .avatar-compact {
+    height: 320px;
+  }
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: relative;
+    height: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .brand-card,
+  .new-chat-btn,
+  .quick-nav {
+    grid-column: span 2;
+  }
+
+  .chat-main {
+    height: 78dvh;
+  }
+}
+
+@media (max-width: 640px) {
+  .sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-card,
+  .new-chat-btn,
+  .quick-nav {
+    grid-column: auto;
+  }
+
+  .topbar {
     align-items: flex-start;
+    flex-direction: column;
   }
 
-  .chat-panel-wrapper {
-    min-height: clamp(460px, 68vh, 800px);
+  .chat-main {
+    height: 82dvh;
   }
 }
 </style>

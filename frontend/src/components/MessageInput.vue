@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="message-input">
     <div v-if="isListening" class="voice-status">
       <div class="voice-wave">
@@ -149,22 +149,25 @@ function setVoiceNotice(message) {
 
 <style scoped>
 .message-input {
-  border-top: 1px solid rgba(127, 160, 196, 0.24);
-  background: linear-gradient(180deg, rgba(11, 19, 32, 0.72), rgba(8, 14, 23, 0.78));
-  padding: 12px;
-  display: grid;
-  gap: 8px;
+  padding: 14px 18px 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 24%);
+}
+
+.voice-status,
+.input-shell {
+  width: min(820px, 100%);
+  margin: 0 auto;
 }
 
 .voice-status {
-  border-radius: 12px;
-  border: 1px solid rgba(128, 177, 230, 0.45);
-  background: linear-gradient(145deg, rgba(26, 56, 92, 0.55), rgba(38, 31, 90, 0.42));
-  min-height: 120px;
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid rgba(16, 163, 127, 0.2);
+  border-radius: 18px;
   display: grid;
   place-items: center;
   text-align: center;
-  padding: 14px;
+  background: rgba(16, 163, 127, 0.06);
 }
 
 .voice-wave {
@@ -178,159 +181,159 @@ function setVoiceNotice(message) {
 .voice-wave span {
   width: 4px;
   border-radius: 999px;
-  background: #d8edff;
+  background: var(--accent-mint);
   animation: wave 1s ease-in-out infinite;
 }
 
-.voice-wave span:nth-child(1) {
-  height: 16px;
-}
-
-.voice-wave span:nth-child(2) {
-  height: 24px;
-  animation-delay: 0.12s;
-}
-
-.voice-wave span:nth-child(3) {
-  height: 30px;
-  animation-delay: 0.24s;
-}
-
-.voice-wave span:nth-child(4) {
-  height: 22px;
-  animation-delay: 0.36s;
-}
-
-.voice-wave span:nth-child(5) {
-  height: 14px;
-  animation-delay: 0.48s;
-}
+.voice-wave span:nth-child(1) { height: 14px; }
+.voice-wave span:nth-child(2) { height: 23px; animation-delay: 0.12s; }
+.voice-wave span:nth-child(3) { height: 30px; animation-delay: 0.24s; }
+.voice-wave span:nth-child(4) { height: 22px; animation-delay: 0.36s; }
+.voice-wave span:nth-child(5) { height: 13px; animation-delay: 0.48s; }
 
 @keyframes wave {
-  0%,
-  100% {
-    transform: scaleY(0.6);
-  }
-  50% {
-    transform: scaleY(1);
-  }
+  0%, 100% { transform: scaleY(0.65); }
+  50% { transform: scaleY(1); }
 }
 
 .voice-status p {
   margin: 0;
-  color: #d5e9ff;
-  line-height: 1.5;
+  color: var(--text-main);
 }
 
 .stop-btn {
   margin-top: 10px;
   min-height: 34px;
-  border: 1px solid rgba(151, 188, 228, 0.45);
-  border-radius: 999px;
   padding: 0 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
   color: var(--text-main);
-  background: rgba(12, 24, 39, 0.75);
+  background: var(--bg-elevated);
 }
 
 .input-shell {
+  min-height: 58px;
+  padding: 8px 8px 8px 16px;
   display: grid;
-  gap: 10px;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: flex-end;
+  align-items: end;
+  gap: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1);
 }
 
 textarea {
   width: 100%;
-  min-height: 44px;
+  min-height: 40px;
   max-height: 180px;
   resize: none;
-  border-radius: 12px;
-  border: 1px solid rgba(130, 161, 196, 0.34);
-  background: rgba(8, 16, 28, 0.72);
+  border: none;
+  outline: none;
+  background: transparent;
   color: var(--text-main);
-  padding: 11px 13px;
-  line-height: 1.6;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  padding: 9px 0;
+  line-height: 1.55;
 }
 
 textarea::placeholder {
-  color: rgba(141, 165, 191, 0.78);
-}
-
-textarea:focus {
-  outline: none;
-  border-color: rgba(131, 188, 246, 0.72);
-  box-shadow: 0 0 0 2px rgba(116, 174, 236, 0.2);
+  color: var(--text-faint);
 }
 
 textarea:disabled {
-  opacity: 0.74;
+  opacity: 0.68;
 }
 
 .action-buttons {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .voice-btn,
 .send-btn {
-  min-height: 42px;
+  height: 40px;
+  border: none;
   border-radius: 12px;
-  border: 1px solid rgba(132, 165, 200, 0.4);
-  background: rgba(12, 22, 35, 0.78);
-  color: #d6ebff;
-  padding: 0 14px;
-  font-size: 0.84rem;
-  transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 0.85rem;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
-.voice-btn:hover:not(:disabled),
-.send-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: rgba(130, 190, 248, 0.74);
-  background: rgba(16, 30, 48, 0.84);
+.voice-btn {
+  padding: 0 12px;
+}
+
+.voice-btn:hover:not(:disabled) {
+  color: var(--text-main);
+  background: var(--item-hover);
 }
 
 .send-btn {
-  min-width: 72px;
-  background: linear-gradient(140deg, rgba(72, 119, 176, 0.6), rgba(87, 72, 170, 0.52));
-  border-color: rgba(138, 186, 239, 0.58);
+  width: 40px;
+  color: #fff;
+  background: var(--accent-mint);
+}
+
+.send-btn::before {
+  content: '↑';
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.send-btn span:not(.loading-spinner) {
+  display: none;
+}
+
+.send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #0d8f70;
 }
 
 .voice-btn:disabled,
 .send-btn:disabled {
-  opacity: 0.52;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
 .loading-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(219, 237, 255, 0.38);
-  border-top-color: rgba(219, 237, 255, 0.95);
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
   border-radius: 999px;
-  display: inline-block;
   animation: spin 0.75s linear infinite;
 }
 
+.send-btn:has(.loading-spinner)::before {
+  content: '';
+}
+
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .voice-notice {
-  margin: 0;
-  color: #ffb0c4;
-  font-size: 0.78rem;
-  line-height: 1.45;
+  width: min(820px, 100%);
+  margin: 8px auto 0;
+  color: var(--danger);
+  font-size: 0.8rem;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 640px) {
+  .message-input {
+    padding: 12px;
+  }
+
   .input-shell {
     grid-template-columns: 1fr;
+    padding: 8px 10px;
   }
 
   .action-buttons {

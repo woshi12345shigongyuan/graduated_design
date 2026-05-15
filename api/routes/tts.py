@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..services.tts_service import tts_service, AUDIO_DIR
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/tts", tags=["语音合成"])
 
 class TTSRequest(BaseModel):
     """TTS 请求模型"""
-    text: str
+    text: str = Field(..., min_length=1, max_length=4000)
     voice: Optional[str] = None
     rate: str = "+0%"
     pitch: str = "+0Hz"
@@ -75,7 +75,12 @@ async def get_audio(filename: str):
     Returns:
         FileResponse: 音频文件
     """
-    audio_path = AUDIO_DIR / filename
+    if Path(filename).name != filename or not filename.lower().endswith(".mp3"):
+        raise HTTPException(status_code=400, detail="非法音频文件名")
+
+    audio_path = (AUDIO_DIR / filename).resolve()
+    if audio_path.parent != AUDIO_DIR.resolve():
+        raise HTTPException(status_code=400, detail="非法音频路径")
     
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail="音频文件不存在")

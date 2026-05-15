@@ -2,7 +2,6 @@
 TTS 服务 - 使用 edge-tts 实现免费语音合成
 """
 
-import os
 import uuid
 import logging
 import asyncio

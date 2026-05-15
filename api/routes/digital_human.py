@@ -4,6 +4,7 @@
 
 import base64
 import logging
+import mimetypes
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -34,6 +35,7 @@ def get_current_avatar_base64() -> Optional[str]:
     if not path:
         _current_avatar_base64 = None
         return None
+
     try:
         # 始终以磁盘文件为准，避免上传在 A 进程、聊天在 B 进程时拿不到图
         data = path.read_bytes()
@@ -43,6 +45,29 @@ def get_current_avatar_base64() -> Optional[str]:
     except Exception as e:
         logger.warning("read avatar base64 error: %s", e)
         return None
+
+
+def get_current_avatar_media_type() -> str:
+    """根据文件内容推断当前头像的 MIME 类型。"""
+    path = get_current_avatar_path()
+    if not path:
+        return "image/jpeg"
+
+    try:
+        data = path.read_bytes()[:16]
+    except Exception:
+        data = b""
+
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data.startswith(b"GIF87a") or data.startswith(b"GIF89a"):
+        return "image/gif"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+
+    return mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
 
 def clear_current_avatar() -> None:
@@ -108,6 +133,6 @@ async def get_avatar_image():
         raise HTTPException(status_code=404, detail="未设置数字人基础图")
     return FileResponse(
         path,
-        media_type="image/jpeg",
+        media_type=get_current_avatar_media_type(),
         headers={"Cache-Control": "no-store, no-cache, must-revalidate"}
     )

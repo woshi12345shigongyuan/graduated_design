@@ -1,5 +1,5 @@
 ﻿<#
-尝尝咸淡 - 智能食谱助手启动脚本 (PowerShell版)
+智能食谱 - 智能食谱助手启动脚本 (PowerShell版)
 功能：替代原批处理脚本，支持选择启动模式并验证后端健康状态
 修复点：修正Start-Process的窗口标题设置方式，解决Title参数不存在的错误
 #>
@@ -15,7 +15,7 @@ Set-Location $scriptPath
 
 # 显示标题
 Write-Host "============================================================"
-Write-Host "尝尝咸淡 - 智能食谱助手"
+Write-Host "智能食谱 - 智能食谱助手"
 Write-Host "============================================================"
 Write-Host ""
 
@@ -56,7 +56,7 @@ switch ($choice) {
 
         # 修复：正确设置新PowerShell窗口的标题（移除-Title，改用参数内指定）
         # 格式：Start-Process powershell -ArgumentList "-NoExit","-Command","`$Host.UI.RawUI.WindowTitle='窗口标题'; 执行命令"
-        $backendCommand = "`$Host.UI.RawUI.WindowTitle='尝尝咸淡-后端'; conda activate cook-rag-1;Set-Location '$scriptPath'; python run_server.py"
+        $backendCommand = "`$Host.UI.RawUI.WindowTitle='智能食谱-后端'; conda activate cook-rag-1;Set-Location '$scriptPath'; python run_server.py"
         $backendArgs = "-NoExit", "-Command", $backendCommand
         Start-Process powershell -ArgumentList $backendArgs -WindowStyle Normal
 

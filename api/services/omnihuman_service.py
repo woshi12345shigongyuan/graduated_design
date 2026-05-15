@@ -16,13 +16,13 @@ from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
-
+#jimeng_realman_avatar_picture_omni_v15 jimeng_realman_avatar_picture_omni_v2
 # OmniHuman1.0 快速模式 - 视频生成 req_key（以官方文档为准）
-REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v2"
+REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v15"
 
 # 轮询配置
 POLL_INTERVAL = 10
-POLL_MAX_WAIT = 600000  # 最多等 5 分钟
+POLL_MAX_WAIT = 1200000  # 最多等 20 分钟
 
 
 class OmniHumanService:
